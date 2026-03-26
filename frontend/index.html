@@ -126,18 +126,15 @@
                 </div>
                 <div v-else-if="watchlist.length > 0" style="flex: 1; min-height: 0;">
                     <div style="height: 100%; overflow-y: auto; padding-right: 4px;">
-                        <div v-for="item in watchlist" :key="item.stock_code" style="padding: 10px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 8px;">
+                        <div v-for="item in watchlist" :key="item.stock_code"
+                             @click="analyzeStock(item.stock_code)"
+                             style="padding: 10px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;"
+                             onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='var(--bg-secondary)'">
                             <!-- 主体：左侧名称代码，中间价格，右侧删除 -->
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span style="font-size: 0.9rem; font-weight: 500;">{{ item.stock_name || item.stock_code }}</span>
                                     <span v-if="item.stock_name" style="font-size: 0.75rem; color: var(--text-light);">{{ item.stock_code }}</span>
-                                    <button @click="copyCode(item.stock_code, $event)" style="background: transparent; border: none; cursor: pointer; padding: 2px; display: flex; align-items: center;" title="复制代码">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                        </svg>
-                                    </button>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 12px;">
                                     <div style="display: flex; flex-direction: column; align-items: flex-end;">
@@ -147,7 +144,7 @@
                                             {{ item.price_change >= 0 ? '+' : '' }}{{ item.price_change }}%
                                         </span>
                                     </div>
-                                    <button @click="removeFromWatchlist(item.stock_code)" title="删除" style="width: 20px; height: 20px; border-radius: 50%; background: #ef4444; color: white; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1;">×</button>
+                                    <button @click.stop="removeFromWatchlist(item.stock_code)" title="删除" style="width: 20px; height: 20px; border-radius: 50%; background: #ef4444; color: white; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1;">×</button>
                                 </div>
                             </div>
                             <!-- 股息率 -->
@@ -159,6 +156,23 @@
                     </div>
                 </div>
                 <div v-else style="text-align: center; color: var(--text-light); padding: 20px;">点击+添加自选股</div>
+            </div>
+        </div>
+
+        <!-- 股票推荐（简洁版） -->
+        <div v-if="recommendations.length > 0" style="margin-top: 16px; padding: 16px; background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary);">今日股票推荐</span>
+                <span style="font-size: 0.75rem; color: var(--text-light);">根据热点新闻动态推荐</span>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <span v-for="item in recommendations" :key="item.code"
+                      @click="analyzeStock(item.code)"
+                      style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; background: var(--bg-tertiary); border-radius: 20px; font-size: 0.8rem; color: var(--text-primary); cursor: pointer; transition: all 0.2s;"
+                      onmouseover="this.style.background='#e0f2fe';this.style.color='#0369a1'" onmouseout="this.style.background='var(--bg-tertiary)';this.style.color='var(--text-primary)'">
+                    <span style="font-weight: 600;">{{ item.name }}</span>
+                    <span style="color: var(--text-light); font-size: 0.75rem;">{{ item.code }}</span>
+                </span>
             </div>
         </div>
 

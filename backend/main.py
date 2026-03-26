@@ -109,6 +109,19 @@ async def get_hot_news(limit: int = 10) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/recommend")
+async def get_stock_recommendations() -> Dict[str, Any]:
+    """获取股票推荐"""
+    try:
+        recommendations = news_service.get_recommended_stocks()
+        return {
+            "recommendations": recommendations,
+            "count": len(recommendations)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ========== 自选股API ==========
 class WatchlistRequest(BaseModel):
     stock_code: str

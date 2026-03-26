@@ -140,10 +140,32 @@ class FinancialAnalyzer:
         # 6. 资产负债分析 - 使用模拟数据
         result["debt_analysis"] = self._analyze_debt_ratio_simplified(stock_code)
 
+        # 7. 市场时机关
+        result["market_timing"] = self._analyze_market_timing(trade_data)
+
+        # 8. 风险排查
+        result["risk_check"] = self._analyze_risk(stock_code)
+
         # 综合评分
         result["overall_score"] = self._calculate_overall_score(result)
 
+        # 保存PE/PB到历史数据库
+        self._save_pe_pb_to_history(stock_code, result)
+
         return result
+
+    def _save_pe_pb_to_history(self, stock_code: str, result: Dict):
+        """保存PE/PB到历史数据库"""
+        from database import Database
+        from datetime import datetime
+
+        val = result.get("valuation_analysis", {})
+        pe = val.get("pe_ttm")
+        pb = val.get("pb")
+
+        if pe or pb:
+            today = datetime.now().strftime("%Y-%m-%d")
+            Database.save_pe_pb_history(stock_code, today, pe, pb)
 
     def _get_stock_name(self, stock_code: str) -> str:
         """获取股票名称"""
@@ -261,16 +283,26 @@ class FinancialAnalyzer:
         """简化版盈利质量分析"""
         # 典型股票的ROE数据（5年）
         roe_db = {
-            "600028": {"roe": [8.5, 7.2, 6.8, 7.5, 8.0], "positive": True, "profit": [355, 312, 280, 320, 350]},
-            "600036": {"roe": [15.0, 14.5, 13.8, 12.5, 14.0], "positive": True, "profit": [900, 850, 800, 750, 820]},
-            "601857": {"roe": [5.2, 4.8, 6.5, 7.0, 6.2], "positive": True, "profit": [180, 150, 200, 220, 200]},
-            "601398": {"roe": [11.0, 10.5, 10.8, 11.2, 11.5], "positive": True, "profit": [360, 340, 350, 370, 380]},
+            "600028": {"roe": [8.5, 7.2, 6.8, 7.5, 8.0], "positive": True, "profit": [355, 312, 280, 320, 350], "revenue": [28000, 26500, 25000, 27000, 27500]},
+            "600036": {"roe": [15.0, 14.5, 13.8, 12.5, 14.0], "positive": True, "profit": [900, 850, 800, 750, 820], "revenue": [3200, 3000, 2800, 2600, 2900]},
+            "601857": {"roe": [5.2, 4.8, 6.5, 7.0, 6.2], "positive": True, "profit": [180, 150, 200, 220, 200], "revenue": [25000, 23000, 26000, 28000, 27000]},
+            "601398": {"roe": [11.0, 10.5, 10.8, 11.2, 11.5], "positive": True, "profit": [360, 340, 350, 370, 380], "revenue": [8600, 8200, 8400, 8700, 8900]},
         }
 
-        stock_info = roe_db.get(stock_code, {"roe": [5, 4, 6, 5, 5], "positive": True, "profit": [50, 40, 60, 55, 52]})
+        stock_info = roe_db.get(stock_code, {"roe": [8, 9, 10, 11, 12], "positive": True, "profit": [50, 55, 60, 65, 70], "revenue": [100, 110, 120, 130, 140]})
         roe_history = stock_info["roe"]
         profit_history = stock_info["profit"]
+        revenue_history = stock_info["revenue"]
         net_profit_positive = stock_info["positive"]
+
+        # 计算CAGR（复合年均增长率）
+        def calc_cagr(values, years=5):
+            if len(values) < 2 or values[-1] <= 0 or values[0] <= 0:
+                return None
+            return (values[-1] / values[0]) ** (1 / (years - 1)) - 1
+
+        revenue_cagr = calc_cagr(revenue_history) * 100 if calc_cagr(revenue_history) else None
+        profit_cagr = calc_cagr(profit_history) * 100 if calc_cagr(profit_history) else None
 
         avg_roe = sum(roe_history) / len(roe_history) if roe_history else 0
         roe_excellent = all(r > 10 for r in roe_history)
@@ -301,7 +333,9 @@ class FinancialAnalyzer:
             "roe_history": profit_history_data,
             "avg_roe": round(avg_roe, 2),
             "roe_status": status,
-            "color": color
+            "color": color,
+            "revenue_cagr": round(revenue_cagr, 1) if revenue_cagr else None,
+            "profit_cagr": round(profit_cagr, 1) if profit_cagr else None
         }
 
     def _analyze_cash_flow_simplified(self, stock_code: str) -> Dict:
@@ -480,16 +514,71 @@ class FinancialAnalyzer:
         if current_price:
             financial_data = stock_service.get_financial_data(self._stock_code)
 
+        # 判断是否为重资产行业
+        heavy_industry_keywords = ["石油", "石化", "化工", "能源", "银行", "保险", "钢铁", "煤炭", "建筑", "房地产", "水泥"]
+        is_heavy_industry = any(kw in industry for kw in heavy_industry_keywords)
+
+        # 新估值标准判断
+        conditions = []
+
+        # a. PE_TTM历史分位数 < 30% 且 PB历史分位数 < 30%
+        cond_a_pass = (pe_percentile and pe_percentile < 30) and (pb_percentile and pb_percentile < 30)
+        conditions.append({
+            "name": "PE分位<30% 且 PB分位<30%",
+            "value": f"PE{pe_percentile or '-'}% / PB{pb_percentile or '-'}%",
+            "pass": cond_a_pass,
+            "desc": "历史估值低位"
+        })
+
+        # b. PE_TTM < 行业平均PE * 0.9 且 PB < 行业平均PB * 0.9
+        cond_b_pass = pe_ttm > 0 and pb > 0 and pe_ttm < industry_pe * 0.9 and pb < industry_pb * 0.9
+        conditions.append({
+            "name": "PE<行业*0.9 且 PB<行业*0.9",
+            "value": f"PE{pe_display}/行业{industry_pe} / PB{pb_display}/行业{industry_pb}",
+            "pass": cond_b_pass,
+            "desc": "相对行业低估"
+        })
+
+        # c. 重资产公司 PB < 1（破净）
+        cond_c_pass = is_heavy_industry and pb > 0 and pb < 1
+        conditions.append({
+            "name": f"{'重资产' if is_heavy_industry else '非重资产'}公司 PB<1",
+            "value": f"PB = {pb_display}",
+            "pass": cond_c_pass,
+            "desc": "破净，便宜"
+        })
+
+        # 任一条件满足即可
+        any_pass = cond_a_pass or cond_b_pass or cond_c_pass
+
+        if any_pass:
+            valuation_status = "估值合理"
+            valuation_color = "green"
+            valuation_suggestion = "满足估值条件，可考虑买入"
+        else:
+            valuation_status = "估值偏高，观望"
+            valuation_color = "red"
+            valuation_suggestion = "估值偏高，建议等待更佳买点"
+
         return {
             "pe_ttm": pe_display,
             "pb": pb_display,
             "pe_percentile": round(pe_percentile, 1) if pe_ttm > 0 else None,
             "pb_percentile": round(pb_percentile, 1) if pb > 0 else None,
-            "industry_pe": industry_pe if industry_pe < 100000 else 20.0,  # 过滤异常值
+            "industry_pe": industry_pe if industry_pe < 100000 else 20.0,
             "industry_pb": industry_pb,
+            "is_heavy_industry": is_heavy_industry,
+            "conditions": conditions,
+            "valuation_status": valuation_status,
+            "valuation_color": valuation_color,
+            "valuation_suggestion": valuation_suggestion,
+            # 保留原有字段兼容
             "pe_valuation": self._get_valuation_status(pe_ttm, pe_percentile),
             "pb_valuation": self._get_valuation_status(pb, pb_percentile),
-            # 添加计算公式和标准说明
+            # 历史数据信息
+            "history_count": len(pe_history) if pe_history else 0,
+            "history_note": "分位数基于本地历史数据" if len(pe_history or []) >= 30 else "⚠️ 历史数据不足，分位数可能不准确（需积累更多数据）",
+            # 计算公式和标准说明
             "pe_formula": f"PE = 当前股价 ÷ 每股收益(EPS)\n        = {current_price:.2f} ÷ {financial_data.get('eps', '?')} = {pe_display}" if current_price and financial_data.get('eps') else None,
             "pb_formula": f"PB = 当前股价 ÷ 每股净资产(BPS)\n        = {current_price:.2f} ÷ {financial_data.get('bps', '?')} = {pb_display}" if current_price and financial_data.get('bps') else None,
             "pe_standard": {
@@ -609,19 +698,32 @@ class FinancialAnalyzer:
             cons.append("负债率过高")
         total += 15
 
-        # 估值（10分）
+        # 估值（10分）- 使用新的估值条件判断
         val = result.get("valuation_analysis", {})
-        pe_per = val.get("pe_percentile") or 50
-        pe = val.get("pe", 0)
-        if pe_per and pe_per < 30:
+        val_pass = val.get("valuation_status") == "估值合理"
+        if val_pass:
             score += 10
-            pros.append("估值偏低")
-        elif pe_per and pe_per < 50:
-            score += 5
-            cons.append("估值适中")
+            pros.append("估值合理")
         else:
-            if pe_per:
-                cons.append(f"PE百分位{pe_per}%")
+            cons.append("估值偏高")
+        total += 10
+
+        # 风险排查（10分）- 一票否决
+        risk = result.get("risk_check", {})
+        if risk.get("all_pass", False):
+            score += 10
+            pros.append("风险排查通过")
+        else:
+            cons.append("存在风险因素")
+        total += 10
+
+        # 市场时机（10分）
+        market = result.get("market_timing", {})
+        if market.get("signal") == "买入":
+            score += 10
+            pros.append("市场时机成熟")
+        else:
+            cons.append("市场时机一般")
         total += 10
 
         final_score = round(score / total * 100, 1) if total > 0 else 0
@@ -700,6 +802,164 @@ class FinancialAnalyzer:
             return "存在一些风险，谨慎投资。"
         else:
             return "不建议投资，建议规避。"
+
+    def _analyze_market_timing(self, trade_data: Dict) -> Dict:
+        """市场时机关分析"""
+        # 从交易数据中获取相关指标
+        current_price = trade_data.get("f43", 0)
+        ma250 = trade_data.get("f204") or current_price  # MA250，如果无数据则用当前价
+        week52_high = trade_data.get("f173") or current_price * 1.2  # 52周高点
+        week52_low = trade_data.get("f174") or current_price * 0.8  # 52周低点
+
+        # 模拟RS相对强度（实际需要对比大盘）
+        # 这里用股价相对52周低点的位置来模拟
+        if current_price > 0 and week52_low > 0:
+            rs = (current_price - week52_low) / (week52_high - week52_low) * 2
+        else:
+            rs = 1.0
+
+        # 计算MA250区间（当前价相对MA250的位置）
+        if ma250 > 0:
+            ma250_position = (current_price - ma250) / ma250 * 100
+        else:
+            ma250_position = 0
+
+        # 计算52周回撤
+        if week52_high > 0:
+            drawdown = (week52_high - current_price) / week52_high * 100
+        else:
+            drawdown = 0
+
+        # 判断条件
+        conditions = []
+
+        # a. 股价相对强度RS > 1
+        rs_pass = rs > 1
+        conditions.append({
+            "name": "股价相对强度(RS) > 1",
+            "value": f"{rs:.2f}",
+            "pass": rs_pass,
+            "desc": "跑赢大盘"
+        })
+
+        # b. 股价位于MA250的 -10% 至 +5% 区间
+        ma250_pass = -10 <= ma250_position <= 5
+        conditions.append({
+            "name": "MA250区间(-10%~+5%)",
+            "value": f"{ma250_position:.1f}%",
+            "pass": ma250_pass,
+            "desc": "接近长期支撑"
+        })
+
+        # c. 股价从52周高点回撤 > 20%
+        drawdown_pass = drawdown > 20
+        conditions.append({
+            "name": "52周回撤 > 20%",
+            "value": f"{drawdown:.1f}%",
+            "pass": drawdown_pass,
+            "desc": "已充分调整"
+        })
+
+        # 任一条件满足即可
+        any_pass = rs_pass or ma250_pass or drawdown_pass
+
+        # 生成建议
+        if any_pass:
+            signal = "买入"
+            signal_color = "green"
+            suggestion = "市场时机成熟，建议关注买入机会"
+        else:
+            signal = "关注/可定投"
+            signal_color = "orange"
+            suggestion = "估值合理，可考虑定投建仓"
+
+        return {
+            "rs": round(rs, 2),
+            "rs_pass": rs_pass,
+            "ma250_position": round(ma250_position, 1),
+            "ma250_pass": ma250_pass,
+            "drawdown": round(drawdown, 1),
+            "drawdown_pass": drawdown_pass,
+            "conditions": conditions,
+            "signal": signal,
+            "signal_color": signal_color,
+            "suggestion": suggestion
+        }
+
+    def _analyze_risk(self, stock_code: str) -> Dict:
+        """风险排查分析"""
+        # 模拟数据 - 实际需要从财务数据获取
+        risk_db = {
+            "600028": {"pledge_rate": 0, "goodwill_ratio": 5.2, "audit_opinion": "标准无保留意见"},
+            "600036": {"pledge_rate": 0, "goodwill_ratio": 2.1, "audit_opinion": "标准无保留意见"},
+            "601857": {"pledge_rate": 35, "goodwill_ratio": 8.5, "audit_opinion": "标准无保留意见"},
+            "601398": {"pledge_rate": 0, "goodwill_ratio": 1.2, "audit_opinion": "标准无保留意见"},
+            "000001": {"pledge_rate": 0, "goodwill_ratio": 15.8, "audit_opinion": "标准无保留意见"},
+        }
+
+        stock_info = risk_db.get(stock_code, {"pledge_rate": 0, "goodwill_ratio": 10, "audit_opinion": "标准无保留意见"})
+
+        pledge_rate = stock_info["pledge_rate"]
+        goodwill_ratio = stock_info["goodwill_ratio"]
+        audit_opinion = stock_info["audit_opinion"]
+
+        # 判断条件
+        conditions = []
+
+        # 大股东质押率 < 60%
+        pledge_pass = pledge_rate < 60
+        conditions.append({
+            "name": "大股东质押率 < 60%",
+            "value": f"{pledge_rate}%" if pledge_rate > 0 else "0%",
+            "pass": pledge_pass,
+            "desc": "高质押可能带来风险"
+        })
+
+        # 商誉占比 < 20%
+        goodwill_pass = goodwill_ratio < 20
+        conditions.append({
+            "name": "商誉占比 < 20%",
+            "value": f"{goodwill_ratio}%",
+            "pass": goodwill_pass,
+            "desc": "高商誉可能计提减值"
+        })
+
+        # 审计意见 == "标准无保留意见"
+        audit_pass = audit_opinion == "标准无保留意见"
+        conditions.append({
+            "name": "审计意见为标准无保留",
+            "value": audit_opinion,
+            "pass": audit_pass,
+            "desc": "非标准意见可能存在问题"
+        })
+
+        # 任一不满足则标记为高风险
+        all_pass = pledge_pass and goodwill_pass and audit_pass
+
+        # 生成结果
+        if all_pass:
+            result_status = "通过"
+            result_color = "green"
+            suggestion = "风险排查通过，无明显风险因素"
+        else:
+            result_status = "高风险淘汰"
+            result_color = "red"
+            failed = [c["name"] for c in conditions if not c["pass"]]
+            suggestion = f"存在风险因素: {', '.join(failed)}"
+
+        return {
+            "pledge_rate": pledge_rate,
+            "pledge_pass": pledge_pass,
+            "goodwill_ratio": goodwill_ratio,
+            "goodwill_pass": goodwill_pass,
+            "audit_opinion": audit_opinion,
+            "audit_pass": audit_pass,
+            "conditions": conditions,
+            "status": result_status,
+            "status_color": result_color,
+            "suggestion": suggestion,
+            "all_pass": all_pass
+        }
 
 
 # 全局分析器实例

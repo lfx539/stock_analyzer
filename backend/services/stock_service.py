@@ -259,8 +259,24 @@ class StockDataService:
         raise Exception(f"未获取到股票 {stock_code} 的行情数据")
 
     def get_historical_pe_pb(self, stock_code: str, years: int = 10) -> List[Dict]:
-        """获取历史PE/PB数据 - 东方财富接口不可用"""
-        # 东方财富接口受限，暂时无法获取历史数据
+        """获取历史PE/PB数据 - 优先从本地数据库获取"""
+        from database import Database
+
+        # 尝试从数据库获取
+        history = Database.get_pe_pb_history(stock_code, limit=years * 250)
+
+        if history:
+            # 转换格式
+            result = []
+            for item in history:
+                if item.get('pe_ttm') or item.get('pb'):
+                    result.append({
+                        "date": item.get("trade_date"),
+                        "pe": item.get("pe_ttm"),
+                        "pb": item.get("pb")
+                    })
+            return result
+
         return []
 
     def get_financial_data(self, stock_code: str) -> Dict:
@@ -345,6 +361,83 @@ class StockDataService:
         }
 
         return financial_db.get(stock_code, {"eps": None, "bps": None})
+
+    # 股票列表缓存
+    _all_stocks_cache = None
+    _cache_time = 0
+
+    def get_all_stocks(self) -> List[Dict]:
+        """获取A股全市场股票列表（带缓存）"""
+        import time
+
+        # 缓存1小时
+        if self._all_stocks_cache and (time.time() - self._cache_time) < 3600:
+            return self._all_stocks_cache
+
+        stocks = []
+
+        try:
+            # 东方财富股票列表接口
+            url = "https://24.push2.eastmoney.com/api/qt/clist/get"
+            params = {
+                "pn": 1,
+                "pz": 5000,
+                "po": 1,
+                "np": 1,
+                "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+                "fltt": 2,
+                "invt": 2,
+                "fid": "f3",
+                "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23",
+                "fields": "f1,f2,f3,f4,f5,f12,f13,f14,f100,f152"
+            }
+
+            resp = requests.get(url, params=params, headers=self.headers, timeout=30)
+            if resp.status_code == 200:
+                data = resp.json()
+                diff = data.get("data", {}).get("diff", [])
+                for item in diff:
+                    code = str(item.get("f12", ""))
+                    name = item.get("f14", "")
+                    if code and name:
+                        # 排除ST股票和退市股票
+                        if "ST" not in name and "*ST" not in name and name:
+                            stocks.append({
+                                "code": code,
+                                "name": name
+                            })
+
+                # 更新缓存
+                self._all_stocks_cache = stocks
+                self._cache_time = time.time()
+                print(f"[股票列表] 获取到 {len(stocks)} 只股票")
+                return stocks
+        except Exception as e:
+            print(f"[股票列表] 获取失败: {e}")
+
+        return stocks
+
+    def search_stocks(self, keyword: str) -> List[Dict]:
+        """根据关键词搜索股票"""
+        if not keyword or len(keyword) < 1:
+            return []
+
+        all_stocks = self.get_all_stocks()
+        keyword = keyword.upper()
+
+        results = []
+        for stock in all_stocks:
+            name = stock["name"].upper()
+            code = stock["code"]
+
+            # 完全匹配优先
+            if keyword == name or keyword == code:
+                results.insert(0, stock)
+            # 包含匹配
+            elif keyword in name or keyword in code:
+                results.append(stock)
+
+        return results[:20]  # 限制返回数量
 
 
 # 全局服务实例

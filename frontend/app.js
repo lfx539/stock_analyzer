@@ -15,6 +15,10 @@ createApp({
         const news = ref([]);
         const newsLoading = ref(false);
 
+        // 推荐股票相关
+        const recommendations = ref([]);
+        const recommendationsLoading = ref(false);
+
         // 自选股相关
         const watchlist = ref([]);
         const watchlistLoading = ref(false);
@@ -46,6 +50,22 @@ createApp({
                 news.value = [];
             } finally {
                 newsLoading.value = false;
+            }
+        };
+
+        // 加载股票推荐
+        const loadRecommendations = async () => {
+            recommendationsLoading.value = true;
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/api/recommend`, {}, 10000);
+                if (!response.ok) throw new Error('网络错误');
+                const data = await response.json();
+                recommendations.value = data.recommendations || [];
+            } catch (err) {
+                console.error('加载推荐失败:', err);
+                recommendations.value = [];
+            } finally {
+                recommendationsLoading.value = false;
             }
         };
 
@@ -138,6 +158,12 @@ createApp({
             window.location.href = `analyze.html?code=${stockCode.value}`;
         };
 
+        // 分析指定股票（用于推荐列表点击）
+        const analyzeStock = (code) => {
+            if (!code) return;
+            window.location.href = `analyze.html?code=${code}`;
+        };
+
         // 获取状态背景色
         const getStatusColor = (color) => {
             const colors = {
@@ -184,6 +210,7 @@ createApp({
         // 初始化加载
         loadNews();
         loadWatchlist();
+        loadRecommendations();
 
         return {
             stockCode,
@@ -191,6 +218,7 @@ createApp({
             error,
             result,
             analyze,
+            analyzeStock,
             getStatusColor,
             getStatusTextColor,
             getPercentileClass,
@@ -199,6 +227,9 @@ createApp({
             // 新闻相关
             news,
             newsLoading,
+            // 推荐股票相关
+            recommendations,
+            recommendationsLoading,
             // 自选股相关
             watchlist,
             watchlistLoading,

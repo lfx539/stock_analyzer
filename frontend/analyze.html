@@ -83,48 +83,107 @@
 
         <!-- 分析结果 -->
         <div v-if="result && !loading">
-            <!-- 股票基本信息 -->
-            <div class="stock-header">
-                <div class="stock-title">
-                    <h2>{{ result.stock_name }}</h2>
-                    <span class="stock-code">{{ result.stock_code }}</span>
-                    <button v-if="!inWatchlist" @click="addToWatchlistFromAnalyze" style="margin-left: 8px; padding: 4px 10px; background: #10b981; color: white; border: none; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">+ 加入自选股</button>
-                    <span v-else style="margin-left: 8px; padding: 4px 10px; background: #e2e8f0; color: #64748b; border-radius: 4px; font-size: 0.75rem;">✓ 已加入自选</span>
+            <!-- 股票信息和评分并排 -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                <!-- 股票基本信息 -->
+                <div class="stock-header">
+                    <div class="stock-title">
+                        <h2>{{ result.stock_name }}</h2>
+                        <span class="stock-code">{{ result.stock_code }}</span>
+                        <button v-if="!inWatchlist" @click="addToWatchlistFromAnalyze" style="margin-left: 8px; padding: 4px 10px; background: #10b981; color: white; border: none; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">+ 加入自选股</button>
+                        <span v-else style="margin-left: 8px; padding: 4px 10px; background: #e2e8f0; color: #64748b; border-radius: 4px; font-size: 0.75rem;">✓ 已加入自选</span>
+                    </div>
+                    <div class="stock-price-row">
+                        <span class="current-price">¥{{ result.current_price }}</span>
+                        <span class="price-change" :class="result.price_change >= 0 ? 'up' : 'down'">
+                            {{ result.price_change >= 0 ? '+' : '' }}{{ result.price_change }}%
+                            ({{ result.price_change_amount >= 0 ? '+' : '' }}{{ result.price_change_amount }})
+                        </span>
+                    </div>
+                    <div class="stock-industry">所属行业：{{ result.industry }}</div>
+                    <div class="analysis-date">分析时间：{{ result.analysis_date }}</div>
                 </div>
-                <div class="stock-price-row">
-                    <span class="current-price">¥{{ result.current_price }}</span>
-                    <span class="price-change" :class="result.price_change >= 0 ? 'up' : 'down'">
-                        {{ result.price_change >= 0 ? '+' : '' }}{{ result.price_change }}%
-                        ({{ result.price_change_amount >= 0 ? '+' : '' }}{{ result.price_change_amount }})
-                    </span>
+
+                <!-- 综合评分 -->
+                <div class="score-card">
+                    <div class="score-content">
+                        <div :class="['score-circle', result.overall_score.rating.toLowerCase()]">
+                            <span class="score-value">{{ result.overall_score.score }}</span>
+                            <span class="score-label">综合得分</span>
+                        </div>
+                        <div class="score-details">
+                            <div class="score-rating" :class="result.overall_score.rating.toLowerCase()">
+                                评级 {{ result.overall_score.rating }}
+                            </div>
+                            <div class="score-suggestion">
+                                <div v-if="result.overall_score.suggestion.pros" class="pros">✅ {{ result.overall_score.suggestion.pros }}</div>
+                                <div v-if="result.overall_score.suggestion.cons" class="cons">⚠️ {{ result.overall_score.suggestion.cons }}</div>
+                                <div class="summary">{{ result.overall_score.suggestion.summary }}</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="stock-industry">所属行业：{{ result.industry }}</div>
-                <div class="analysis-date">分析时间：{{ result.analysis_date }}</div>
             </div>
 
-            <!-- 综合评分 -->
-            <div class="score-card">
-                <div :class="['score-circle', result.overall_score.rating.toLowerCase()]">
-                    <span class="score-value">{{ result.overall_score.score }}</span>
-                    <span class="score-label">综合得分</span>
-                </div>
-                <div class="score-info">
-                    <div class="score-rating" :class="result.overall_score.rating.toLowerCase()">
-                        评级：{{ result.overall_score.rating }}
+            <!-- 风险排查 -->
+            <h3 class="section-title">风险排查</h3>
+            <div class="metrics-grid">
+                <div class="metric-card" style="grid-column: 1 / -1;">
+                    <div class="metric-header">
+                        <span class="metric-name">风险状态</span>
+                        <span class="metric-status" :style="{background: result.risk_check.status_color === 'green' ? '#d1fae5' : '#fee2e2', color: result.risk_check.status_color === 'green' ? '#065f46' : '#991b1b'}">
+                            {{ result.risk_check.status }}
+                        </span>
                     </div>
-                    <div style="font-size: 0.75rem; margin-top: 6px; line-height: 1.6;">
-                        <div v-if="result.overall_score.suggestion.pros" style="color: #059669; margin-bottom: 4px;">
-                            <span style="font-weight: 600;">✅ 优点：</span>{{ result.overall_score.suggestion.pros }}
-                        </div>
-                        <div v-if="result.overall_score.suggestion.cons" style="color: #dc2626; margin-bottom: 4px;">
-                            <span style="font-weight: 600;">⚠️ 注意：</span>{{ result.overall_score.suggestion.cons }}
-                        </div>
-                        <div style="color: var(--text-primary); font-weight: 500; padding-top: 4px; border-top: 1px dashed var(--border-color);">
-                            {{ result.overall_score.suggestion.summary }}
+                    <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-primary);">
+                        {{ result.risk_check.suggestion }}
+                    </div>
+                    <!-- 条件列表 -->
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
+                        <div v-for="(cond, idx) in result.risk_check.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+                            <div>
+                                <span style="font-weight: 500; font-size: 0.85rem;">{{ cond.name }}</span>
+                                <span style="color: var(--text-light); font-size: 0.75rem; margin-left: 6px;">{{ cond.desc }}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 0.85rem; font-weight: 500;">{{ cond.value }}</span>
+                                <span :style="{color: cond.pass ? '#059669' : '#dc2626', fontSize: '0.8rem'}">{{ cond.pass ? '✓' : '✗' }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- 市场时机 -->
+            <h3 class="section-title">市场时机</h3>
+            <div class="metrics-grid">
+                <div class="metric-card" style="grid-column: 1 / -1;">
+                    <div class="metric-header">
+                        <span class="metric-name">买入信号</span>
+                        <span class="metric-status" :style="{background: result.market_timing.signal_color === 'green' ? '#d1fae5' : '#fef3c7', color: result.market_timing.signal_color === 'green' ? '#065f46' : '#92400e'}">
+                            {{ result.market_timing.signal }}
+                        </span>
+                    </div>
+                    <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-primary);">
+                        {{ result.market_timing.suggestion }}
+                    </div>
+                    <!-- 条件列表 -->
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
+                        <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 8px;">满足任一条件即可：</div>
+                        <div v-for="(cond, idx) in result.market_timing.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+                            <div>
+                                <span style="font-weight: 500; font-size: 0.85rem;">{{ cond.name }}</span>
+                                <span style="color: var(--text-light); font-size: 0.75rem; margin-left: 6px;">{{ cond.desc }}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 0.85rem; font-weight: 500;">{{ cond.value }}</span>
+                                <span :style="{color: cond.pass ? '#059669' : '#dc2626', fontSize: '0.8rem'}">{{ cond.pass ? '✓' : '✗' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 第一区域：好公司筛选 -->
             <h3 class="section-title">好公司筛选指标</h3>
             <div class="metrics-grid">
@@ -136,16 +195,16 @@
                             {{ result.dividend_analysis.yield_status.status }}
                         </span>
                     </div>
-                    <div class="metric-value">{{ result.dividend_analysis.dividend_yield }}%</div>
+                    <div class="metric-value">{{ formatNumber(result.dividend_analysis.dividend_yield, 2) }}%</div>
                     <div class="metric-detail">
-                        最新分红：{{ result.dividend_analysis.latest_cash_dividend }}元/股
+                        最新分红：{{ formatNumber(result.dividend_analysis.latest_cash_dividend, 3) }}元/股
                         <br>连续分红：{{ result.dividend_analysis.continuous_years }}年
                     </div>
                     <div class="metric-standard">参考：优秀>4%，良好>2%</div>
                     <ul class="metric-list" v-if="result.dividend_analysis.dividend_history">
                         <li v-for="div in result.dividend_analysis.dividend_history" :key="div.year">
                             <span>{{ div.year }}年</span>
-                            <span>{{ div.cash_dividend }}元/股</span>
+                            <span>{{ formatNumber(div.cash_dividend, 3) }}元/股</span>
                         </li>
                     </ul>
                 </div>
@@ -161,7 +220,7 @@
                     <div class="metric-value">{{ result.payout_analysis.payout_ratio }}%</div>
                     <div class="metric-detail">
                         每股收益：{{ result.payout_analysis.eps }}元
-                        <br>每股分红：{{ result.payout_analysis.cash_dividend }}元
+                        <br>每股分红：{{ formatNumber(result.payout_analysis.cash_dividend, 3) }}元
                     </div>
                     <div class="metric-standard">参考：合理30%-70%</div>
                     <!-- 5年历史数据 -->
@@ -184,6 +243,21 @@
                     <div class="metric-value">{{ result.profit_analysis.avg_roe }}%</div>
                     <div class="metric-detail">
                         净利润为正：{{ result.profit_analysis.net_profit_positive ? '是' : '否' }}
+                    </div>
+                    <!-- 增长率指标 -->
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                            <span style="color: var(--text-light); font-size: 0.8rem;">营收增长率(CAGR)</span>
+                            <span :style="{color: result.profit_analysis.revenue_cagr && result.profit_analysis.revenue_cagr > 0 ? '#059669' : '#dc2626', fontWeight: '500', fontSize: '0.85rem'}">
+                                {{ result.profit_analysis.revenue_cagr ? result.profit_analysis.revenue_cagr + '%' : '-' }}
+                            </span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-light); font-size: 0.8rem;">净利润增长率(CAGR)</span>
+                            <span :style="{color: result.profit_analysis.profit_cagr && result.profit_analysis.profit_cagr > 0 ? '#059669' : '#dc2626', fontWeight: '500', fontSize: '0.85rem'}">
+                                {{ result.profit_analysis.profit_cagr ? result.profit_analysis.profit_cagr + '%' : '-' }}
+                            </span>
+                        </div>
                     </div>
                     <div class="metric-standard">参考：优秀>10%，卓越>15%</div>
                     <!-- 5年ROE历史 -->
@@ -245,6 +319,37 @@
             <!-- 第二区域：估值分析 -->
             <h3 class="section-title">估值分析</h3>
             <div class="metrics-grid">
+                <!-- 估值状态 -->
+                <div class="metric-card" style="grid-column: 1 / -1;">
+                    <div class="metric-header">
+                        <span class="metric-name">估值结论</span>
+                        <span class="metric-status" :style="{background: result.valuation_analysis.valuation_color === 'green' ? '#d1fae5' : '#fee2e2', color: result.valuation_analysis.valuation_color === 'green' ? '#065f46' : '#991b1b'}">
+                            {{ result.valuation_analysis.valuation_status }}
+                        </span>
+                    </div>
+                    <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-primary);">
+                        {{ result.valuation_analysis.valuation_suggestion }}
+                    </div>
+                    <!-- 历史数据提示 -->
+                    <div v-if="result.valuation_analysis.history_note" style="margin-top: 10px; padding: 8px; background: #fef3c7; border-radius: 6px; font-size: 0.75rem; color: #92400e;">
+                        {{ result.valuation_analysis.history_note }}
+                    </div>
+                    <!-- 条件列表 -->
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
+                        <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 8px;">满足任一条件即估值合理：</div>
+                        <div v-for="(cond, idx) in result.valuation_analysis.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+                            <div>
+                                <span style="font-weight: 500; font-size: 0.85rem;">{{ cond.name }}</span>
+                                <span style="color: var(--text-light); font-size: 0.75rem; margin-left: 6px;">{{ cond.desc }}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 0.8rem; color: var(--text-light);">{{ cond.value }}</span>
+                                <span :style="{color: cond.pass ? '#059669' : '#dc2626', fontSize: '0.8rem'}">{{ cond.pass ? '✓' : '✗' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- PE估值 -->
                 <div class="valuation-card">
                     <div class="valuation-header">
@@ -318,7 +423,7 @@
                             <td>{{ formatValue(result.valuation_analysis.pe_ttm) }}</td>
                             <td>{{ result.valuation_analysis.industry_pe }}</td>
                             <td v-if="result.valuation_analysis.pe_ttm" :class="result.valuation_analysis.pe_ttm < result.valuation_analysis.industry_pe ? 'better' : 'worse'">
-                                {{ result.valuation_analysis.pe_ttm < result.valuation_analysis.industry_pe ? '低于行业' : '高于行业' }}
+                                {{ result.valuation_analysis.pe_ttm < result.valuation_analysis.industry_pe ? '相对低估（回本更快）' : '相对高估（回本更慢）' }}
                             </td>
                             <td v-else>-</td>
                         </tr>
@@ -327,19 +432,12 @@
                             <td>{{ formatValue(result.valuation_analysis.pb) }}</td>
                             <td>{{ result.valuation_analysis.industry_pb }}</td>
                             <td v-if="result.valuation_analysis.pb" :class="result.valuation_analysis.pb < result.valuation_analysis.industry_pb ? 'better' : 'worse'">
-                                {{ result.valuation_analysis.pb < result.valuation_analysis.industry_pb ? '低于行业' : '高于行业' }}
+                                {{ result.valuation_analysis.pb < result.valuation_analysis.industry_pb ? '相对低估（溢价低）' : '相对高估（溢价高）' }}
                             </td>
                             <td v-else>-</td>
                         </tr>
                     </tbody>
                 </table>
-                <div style="margin-top: 12px; padding: 10px; background: var(--bg-secondary); border-radius: 6px; font-size: 0.75rem; color: var(--text-light);">
-                    <div style="margin-bottom: 4px;"><strong>行业对比说明：</strong></div>
-                    <div>PE低于行业平均 → <span style="color: #4ade80;">相对低估</span>（回本更快）</div>
-                    <div>PE高于行业平均 → <span style="color: #f87171;">相对高估</span>（回本更慢）</div>
-                    <div style="margin-top: 6px;">PB低于行业平均 → <span style="color: #4ade80;">相对低估</span>（账面价值溢价低）</div>
-                    <div>PB高于行业平均 → <span style="color: #f87171;">相对高估</span>（账面价值溢价高）</div>
-                </div>
             </div>
         </div>
 
@@ -384,7 +482,7 @@
                     window.location.href = `analyze.html?code=${stockCode.value}`;
                 };
 
-                // 带超时的fetch
+                // 带���时的fetch
                 const fetchWithTimeout = async (url, options = {}, timeout = 30000) => {
                     const controller = new AbortController();
                     const id = setTimeout(() => controller.abort(), timeout);
@@ -488,6 +586,12 @@
                     return value;
                 };
 
+                // 格式化数字，保留合理小数位
+                const formatNumber = (value, decimals = 2) => {
+                    if (value === null || value === undefined || value === 0) return '-';
+                    return Number(value).toFixed(decimals);
+                };
+
                 return {
                     stockCode,
                     loading,
@@ -500,7 +604,8 @@
                     getStatusColor,
                     getStatusTextColor,
                     getPercentileClass,
-                    formatValue
+                    formatValue,
+                    formatNumber
                 };
             }
         }).mount('#app');

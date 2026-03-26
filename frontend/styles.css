@@ -40,43 +40,43 @@ body {
 /* 头部 */
 .header {
     text-align: center;
-    padding: 40px 0;
+    padding: 20px 0;
 }
 
 .header h1 {
-    font-size: 2rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--text);
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .header p {
     color: var(--text-light);
-    font-size: 0.95rem;
+    font-size: 0.85rem;
 }
 
 /* 搜索框 */
 .search-box {
     background: var(--card-bg);
-    border-radius: 16px;
-    padding: 32px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-    margin-bottom: 32px;
+    border-radius: 12px;
+    padding: 12px 20px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+    margin-bottom: 16px;
 }
 
 .search-form {
     display: flex;
-    gap: 12px;
-    max-width: 600px;
+    gap: 8px;
+    max-width: 500px;
     margin: 0 auto;
 }
 
 .search-input {
     flex: 1;
-    padding: 14px 20px;
+    padding: 10px 16px;
     border: 2px solid var(--border);
-    border-radius: 12px;
-    font-size: 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
     transition: border-color 0.2s;
 }
 
@@ -90,12 +90,12 @@ body {
 }
 
 .search-btn {
-    padding: 14px 32px;
+    padding: 10px 24px;
     background: var(--primary);
     color: white;
     border: none;
-    border-radius: 12px;
-    font-size: 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.2s;
@@ -132,22 +132,21 @@ body {
 
 /* 股票基本信息 */
 .stock-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 16px;
-    padding: 28px;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    border-radius: 14px;
+    padding: 18px;
     color: white;
-    margin-bottom: 24px;
 }
 
 .stock-title {
     display: flex;
     align-items: center;
-    gap: 16px;
-    margin-bottom: 8px;
+    gap: 12px;
+    margin-bottom: 4px;
 }
 
 .stock-title h2 {
-    font-size: 1.8rem;
+    font-size: 1.3rem;
     font-weight: 700;
 }
 
@@ -195,25 +194,59 @@ body {
 
 /* 综合评分 */
 .score-card {
-    background: var(--card-bg);
-    border-radius: 16px;
-    padding: 28px;
-    margin-bottom: 24px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 2px 10px rgba(99, 102, 241, 0.15);
+    border: 1px solid #e0e7ff;
+}
+
+.score-content {
     display: flex;
+    gap: 16px;
     align-items: center;
-    gap: 24px;
+}
+
+.score-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.score-suggestion {
+    font-size: 0.75rem;
+    line-height: 1.5;
+    margin-top: 6px;
+}
+
+.score-suggestion .pros {
+    color: #059669;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.score-suggestion .cons {
+    color: #dc2626;
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.score-suggestion .summary {
+    color: var(--text-primary);
+    font-weight: 500;
+    padding-top: 4px;
+    border-top: 1px dashed #cbd5e1;
 }
 
 .score-circle {
-    width: 120px;
-    height: 120px;
+    width: 90px;
+    height: 90px;
     border-radius: 50%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .score-circle.a-plus { background: linear-gradient(135deg, #10b981, #059669); color: white; }
@@ -224,13 +257,13 @@ body {
 .score-circle.d { background: linear-gradient(135deg, #f87171, #ef4444); color: white; }
 
 .score-value {
-    font-size: 2.5rem;
+    font-size: 1.8rem;
     font-weight: 700;
     line-height: 1;
 }
 
 .score-label {
-    font-size: 0.85rem;
+    font-size: 0.7rem;
     opacity: 0.9;
 }
 
@@ -241,8 +274,10 @@ body {
 
 .score-rating {
     display: inline-block;
-    padding: 4px 12px;
+    padding: 3px 10px;
     border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
     font-weight: 600;
     margin-bottom: 8px;
 }
@@ -259,10 +294,10 @@ body {
 
 /* 区域标题 */
 .section-title {
-    font-size: 1.2rem;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--text);
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -279,8 +314,8 @@ body {
 /* 指标卡片网格 */
 .metrics-grid {
     display: grid;
-    gap: 16px;
-    margin-bottom: 32px;
+    gap: 12px;
+    margin-bottom: 20px;
     /* 默认一排三个 */
     grid-template-columns: repeat(3, 1fr);
 }
@@ -292,9 +327,9 @@ body {
 
 .metric-card {
     background: var(--card-bg);
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     border: 1px solid var(--border);
 }
 
@@ -499,6 +534,15 @@ body {
 
     .search-form {
         flex-direction: column;
+    }
+
+    .score-content {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .score-suggestion .summary {
+        text-align: left;
     }
 
     .metrics-grid {

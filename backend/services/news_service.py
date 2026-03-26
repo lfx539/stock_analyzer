@@ -150,7 +150,7 @@ class NewsService:
                         "净流入", "加仓", "增持", "看多", "抢眼", "领涨", "活跃", "扬", "升"]
 
         # 检测负面词汇
-        negative_words = ["跌", "大跌", "跌停", "暴跌", "下跌", "回落", "调整", "亏损", "暴雷", "利空",
+        negative_words = ["��", "大跌", "跌停", "暴跌", "下跌", "回落", "调整", "亏损", "暴雷", "利空",
                         "减持", "净流出", "减仓", "看空", "承压", "低迷", "疲软", "下行", "收缩", "降",
                         "降", "取消", "终止", "失败", "预警"]
 
@@ -193,7 +193,7 @@ class NewsService:
                      "医药", "医疗", "疫苗", "创新药", "医疗器械", "消费", "食品", "饮料", "白酒",
                      "家电", "钢铁", "建筑", "建材", "工程机械", "航空", "航运", "物流"],
         # 公司/事件类
-        "company": ["业绩", "财报", "净利润", "营收", "订单", "签约", "中标", "合作", "并购", "重组",
+        "company": ["业绩", "财报", "净利润", "营���", "订单", "签约", "中标", "合作", "并购", "重组",
                     "暴雷", "亏损", "ST", "退市", "IPO", "上市", "申购", "解禁", "减持", "增减持",
                     "回购", "分红", "送转", "配股", "定增", "发债", "融资", "投资", "项目"],
         # 情绪/资金类
@@ -212,7 +212,7 @@ class NewsService:
         """获取热点新闻"""
         news_list = []
 
-        # 尝试多个新闻源
+        # 尝试多���新闻源
         news_list = self._get_jrj_news(limit)  # 金融界
         if not news_list or len(news_list) < 3:
             news_list = self._get_eastmoney_news(limit)
@@ -431,6 +431,27 @@ class NewsService:
         "大涨": ({"code": "510300", "name": "沪深300ETF", "reason": "市场大涨时，宽基ETF能很好地跟上行情"}, "510300"),
         "科创50": ({"code": "513050", "name": "科创50ETF", "reason": "科创50代表科技创新方向弹性更大"}, "513050"),
 
+        # 宏观相关ETF
+        "降准": ({"code": "511880", "name": "银华日利ETF", "reason": "降准释放流动性，货币ETF受益"}, "511880"),
+        "降息": ({"code": "511010", "name": "华夏上证国债ETF", "reason": "降息利好债券，债券ETF配置价值提升"}, "511010"),
+        "加息": ({"code": "511880", "name": "银华日利ETF", "reason": "加息周期货币基金收益较好"}, "511880"),
+        "央行": ({"code": "511880", "name": "银华日利ETF", "reason": "央行政策稳定，货币基金稳健"}, "511880"),
+        "宽松": ({"code": "511880", "name": "银华日利ETF", "reason": "货币政策宽松，货币ETF收益稳定"}, "511880"),
+        "流动性": ({"code": "511880", "name": "银华日利ETF", "reason": "流动性宽松有利于货币基金"}, "511880"),
+        "资金面": ({"code": "511880", "name": "银华日利ETF", "reason": "资金面宽松，货币ETF受益"}, "511880"),
+        "国债": ({"code": "511010", "name": "华夏上证国债ETF", "reason": "国债收益率下行，债券基金受益"}, "511010"),
+        "债券": ({"code": "511010", "name": "华夏上证国债ETF", "reason": "债券市场机会，债券ETF可配置"}, "511010"),
+        "印花税": ({"code": "510300", "name": "沪深300ETF", "reason": "印花税下调利好股市，宽基ETF配置"}, "510300"),
+        "汇率": ({"code": "518880", "name": "黄金ETF", "reason": "汇率波动，黄金ETF避险"}, "518880"),
+        "人民币": ({"code": "518880", "name": "黄金ETF", "reason": "人民币汇率影响，黄金ETF避险配置"}, "518880"),
+        "美联储": ({"code": "511880", "name": "银华日利ETF", "reason": "美联储政策不确定，货币基金防御性强"}, "511880"),
+        "社融": ({"code": "511880", "name": "银华日利ETF", "reason": "社融数据反映经济活力，货币ETF稳健"}, "511880"),
+        "M2": ({"code": "511880", "name": "银华日利ETF", "reason": "M2增速反映货币供应，货币ETF受益"}, "511880"),
+        "通胀": ({"code": "518880", "name": "黄金ETF", "reason": "通胀预期升温，黄金ETF避险配置"}, "518880"),
+        "上涨": ({"code": "510300", "name": "沪深300ETF", "reason": "市场上涨时，宽基ETF分享收益"}, "510300"),
+        "反弹": ({"code": "510300", "name": "沪深300ETF", "reason": "市场反弹，宽基ETF把握行情"}, "510300"),
+        "回升": ({"code": "510300", "name": "沪深300ETF", "reason": "经济回升预期，宽基ETF配置"}, "510300"),
+
         "人工智能": ({"code": "515980", "name": "人工智能ETF", "reason": "AI行业核心标的，跟踪中证人工智能指数，受益AI产业爆发"}, "515980"),
         "AI": ({"code": "515980", "name": "人工智能ETF", "reason": "人工智能产业快速发展，龙头公司业绩增长确定"}, "515980"),
         "大模型": ({"code": "515980", "name": "人工智能ETF", "reason": "大模型是AI产业核心赛道，发展前景广阔"}, "515980"),
@@ -509,6 +530,221 @@ class NewsService:
     def get_stock_news(self, stock_code: str = None) -> List[Dict]:
         """获取特定股票的新闻"""
         return self.get_hot_news(5)
+
+    # 股票代码映射（根据热点关键词映射到个股）
+    STOCK_RECOMMENDATIONS = {
+        # 科技类
+        "人工智能": [
+            {"code": "002230", "name": "科大讯飞", "reason": "AI语音龙头，受益大模型发展"},
+            {"code": "300750", "name": "宁德时代", "reason": "动力电池龙头，储能业务爆发"},
+            {"code": "688981", "name": "中芯国际", "reason": "半导体晶圆代工龙头，国产替代核心"},
+        ],
+        "AI": [
+            {"code": "002230", "name": "科大讯飞", "reason": "AI语音龙头，大模型国内领先"},
+            {"code": "300364", "name": "捷成股份", "reason": "AIGC内容生成，受益AI应用爆发"},
+        ],
+        "芯片": [
+            {"code": "688981", "name": "中芯国际", "reason": "半导体国产替代龙头"},
+            {"code": "688396", "name": "华润微", "reason": "功率半导体龙头，业绩增长强劲"},
+        ],
+        "半导体": [
+            {"code": "688981", "name": "中芯国际", "reason": "晶圆代工龙头，国产替代核心"},
+            {"code": "688126", "name": "沪硅产业", "reason": "硅片龙头，晶圆产能受益"},
+        ],
+        "新能源": [
+            {"code": "300750", "name": "宁德时代", "reason": "动力电池龙头，全球市占率第一"},
+            {"code": "002594", "name": "比亚迪", "reason": "新能源汽车龙头，销量持续增长"},
+        ],
+        "光伏": [
+            {"code": "300274", "name": "阳光电源", "reason": "光伏逆变器龙头，储能业务爆发"},
+            {"code": "600438", "name": "通威股份", "reason": "硅料+电池片双龙头，成本优势明显"},
+        ],
+        "新能源汽车": [
+            {"code": "002594", "name": "比亚迪", "reason": "新能源车销量冠军，海外拓展加速"},
+            {"code": "300750", "name": "宁德时代", "reason": "动力电池龙头，绑定主流车企"},
+        ],
+        "汽车": [
+            {"code": "002594", "name": "比亚迪", "reason": "新能源车龙头，品牌力提升"},
+            {"code": "601127", "name": "赛力斯", "reason": "华为合作车型热销，销量突破"},
+        ],
+        # 金融类
+        "银行": [
+            {"code": "601398", "name": "工商银行", "reason": "国有大行，高股息稳定"},
+            {"code": "601988", "name": "中国银行", "reason": "跨境业务优势，高股息"},
+        ],
+        "券商": [
+            {"code": "600030", "name": "中信证券", "reason": "券商业龙头，资本市场改革受益"},
+            {"code": "688111", "name": "东方财富", "reason": "互联网券商，流量优势明显"},
+        ],
+        "保险": [
+            {"code": "601318", "name": "中国平安", "reason": "保险龙头，估值处于历史低位"},
+            {"code": "601601", "name": "中国太保", "reason": "寿险改革成效显现，估值修复"},
+        ],
+        # 消费类
+        "消费": [
+            {"code": "600519", "name": "贵州茅台", "reason": "白酒龙头，盈利能力最强"},
+            {"code": "000858", "name": "五粮液", "reason": "高端白酒，估值合理"},
+        ],
+        "白酒": [
+            {"code": "600519", "name": "贵州茅台", "reason": "白酒龙头，品牌壁垒最高"},
+            {"code": "000858", "name": "五粮液", "reason": "高端白酒，业绩增长稳定"},
+        ],
+        "食品": [
+            {"code": "603259", "name": "海天味业", "reason": "调味品龙头，渠道优势强大"},
+            {"code": "002507", "name": "涪陵榨菜", "reason": "榨菜龙头，提价能力强"},
+        ],
+        "家电": [
+            {"code": "000333", "name": "美的集团", "reason": "家电龙头，海外拓展加速"},
+            {"code": "000651", "name": "格力电器", "reason": "空调龙头，高股息"},
+        ],
+        "医药": [
+            {"code": "600276", "name": "恒瑞医药", "reason": "创新药龙头，研发实力最强"},
+            {"code": "300015", "name": "爱尔眼科", "reason": "眼科龙头，商业模式优秀"},
+        ],
+        "医疗": [
+            {"code": "300015", "name": "爱尔眼科", "reason": "眼科龙头，业绩增长稳定"},
+            {"code": "688278", "name": "特宝生物", "reason": "生物药企，独家产品放量"},
+        ],
+        # 资源类
+        "黄金": [
+            {"code": "600547", "name": "山东黄金", "reason": "黄金开采龙头，受益金价上涨"},
+            {"code": "600489", "name": "中金黄金", "reason": "黄金央企，资源储备丰富"},
+        ],
+        "油气": [
+            {"code": "600028", "name": "中国石化", "reason": "石化龙头，高股息"},
+            {"code": "601857", "name": "中国石油", "reason": "油气开采受益油价高位"},
+        ],
+        "煤炭": [
+            {"code": "601001", "name": "山西焦化", "reason": "焦炭龙头，业绩增长稳定"},
+            {"code": "601088", "name": "上海能源", "reason": "煤电一体化，高股息"},
+        ],
+        "电力": [
+            {"code": "600900", "name": "长江电力", "reason": "水电龙头，现金流稳定高股息"},
+            {"code": "601991", "name": "大唐发电", "reason": "火电+新能源，估值修复"},
+        ],
+        # 基建地产类
+        "地产": [
+            {"code": "000002", "name": "万科A", "reason": "地产龙头，经营稳健"},
+            {"code": "600048", "name": "保利发展", "reason": "央企地产，销售增长强劲"},
+        ],
+        "建筑": [
+            {"code": "601668", "name": "中国建筑", "reason": "建筑龙头，基建订单饱满"},
+            {"code": "601390", "name": "中国中铁", "reason": "基建央企，估值处于低位"},
+        ],
+        "钢铁": [
+            {"code": "600019", "name": "宝钢股份", "reason": "钢铁龙头，盈利能力最强"},
+            {"code": "000717", "name": "韶钢松山", "reason": "华南钢铁，区域优势明显"},
+        ],
+        # TMT
+        "互联网": [
+            {"code": "00700", "name": "腾讯控股", "reason": "互联网龙头，游戏+AI双轮驱动"},
+            {"code": "03690", "name": "美团", "reason": "本地生活龙头，业绩恢复增长"},
+        ],
+        "云计算": [
+            {"code": "688111", "name": "东方财富", "reason": "金融云龙头，流量优势强"},
+            {"code": "300454", "name": "网宿科技", "reason": "CDN龙头，转型云计算"},
+        ],
+        "5G": [
+            {"code": "600050", "name": "中国联通", "reason": "运营商龙头，5G应用爆发"},
+            {"code": "000063", "name": "中兴通讯", "reason": "5G设备龙头，制裁影响消除"},
+        ],
+        "算力": [
+            {"code": "300498", "name": "中科曙光", "reason": "算力基础设施龙头"},
+            {"code": "603019", "name": "中科曙光", "reason": "国产算力核心标的"},
+        ],
+        # 军工
+        "军工": [
+            {"code": "600893", "name": "航发动力", "reason": "航空发动机龙头，订单饱满"},
+            {"code": "600038", "name": "中直股份", "reason": "直升机龙头，业绩增长确定"},
+        ],
+    }
+
+    def get_recommended_stocks(self) -> List[Dict]:
+        """根据当天新闻动态推荐股票"""
+        # 动态导入，避免循环依赖
+        from services.stock_service import stock_service
+
+        # 获取热点新闻
+        news_list = self.get_hot_news(10)
+
+        if not news_list:
+            # 如果没有新闻，返回默认推荐
+            return self._get_default_recommendations()
+
+        # 收集推荐的股票
+        stock_recs = []
+        matched_companies = set()
+
+        # 从新闻标题中提取可能的股票代码或公司名
+        for news in news_list:
+            title = news.get('title', '')
+            if not title:
+                continue
+
+            # 检查是否有利好情感
+            sentiment = self._analyze_sentiment(title)
+            if sentiment != "positive":
+                continue
+
+            # 尝试匹配新闻中的股票
+            # 方法1: 查找预定义关键词对应的股票
+            for keyword, stocks in self.STOCK_RECOMMENDATIONS.items():
+                if keyword in title and keyword not in matched_companies:
+                    for stock in stocks[:1]:
+                        stock_recs.append({
+                            **stock,
+                            "reason": f"新闻提及「{keyword}」：{stock['reason'][:30]}",
+                            "matched_news": title[:40] + "..." if len(title) > 40 else title
+                        })
+                    matched_companies.add(keyword)
+
+            # 方法2: 尝试从新闻标题中提取公司名进行动态搜索
+            # 常见公司名模式提取
+            import re
+            # 匹配括号中的股票代码，如 "(600519)"
+            code_match = re.search(r'[（(](\d{6})[）)]', title)
+            if code_match:
+                code = code_match.group(1)
+                # 验证股票是否存在
+                stock_info = stock_service.get_stock_info(code)
+                if stock_info.get("name"):
+                    if code not in matched_companies:
+                        stock_recs.append({
+                            "code": code,
+                            "name": stock_info.get("name"),
+                            "reason": f"新闻提及股票代码：{code}",
+                            "matched_news": title[:40] + "..." if len(title) > 40 else title
+                        })
+                        matched_companies.add(code)
+
+        # 去重
+        seen = set()
+        unique_recs = []
+        for rec in stock_recs:
+            if rec["code"] not in seen:
+                seen.add(rec["code"])
+                unique_recs.append(rec)
+
+        # 如果推荐太少，返回默认
+        if len(unique_recs) < 3:
+            default_recs = self._get_default_recommendations()
+            # 合并并去重
+            for rec in default_recs:
+                if rec["code"] not in seen:
+                    unique_recs.append(rec)
+                    seen.add(rec["code"])
+
+        return unique_recs[:5]  # 最多返回5只
+
+    def _get_default_recommendations(self) -> List[Dict]:
+        """默认股票推荐"""
+        return [
+            {"code": "600519", "name": "贵州茅台", "reason": "白酒龙头，业绩稳定增长，高股息", "matched_news": "默认推荐"},
+            {"code": "300750", "name": "宁德时代", "reason": "动力电池龙头，受益新能源汽车渗透率提升", "matched_news": "默认推荐"},
+            {"code": "601398", "name": "工商银行", "reason": "国有大行，高股息低估值，防御性强", "matched_news": "默认推荐"},
+            {"code": "002594", "name": "比亚迪", "reason": "新能源汽车龙头，销量持续增长", "matched_news": "默认推荐"},
+            {"code": "600028", "name": "中国石化", "reason": "石化龙头，高股息6%+，业绩稳定", "matched_news": "默认推荐"},
+        ]
 
 # 全局新闻服务实例
 news_service = NewsService()
