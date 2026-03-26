@@ -132,10 +132,11 @@ body {
 
 /* 股票基本信息 */
 .stock-header {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-    border-radius: 14px;
-    padding: 18px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    padding: 16px;
     color: white;
+    margin-bottom: 0;
 }
 
 .stock-title {
@@ -194,47 +195,20 @@ body {
 
 /* 综合评分 */
 .score-card {
-    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-    border-radius: 14px;
+    background: var(--card-bg);
+    border-radius: 12px;
     padding: 16px;
-    box-shadow: 0 2px 10px rgba(99, 102, 241, 0.15);
-    border: 1px solid #e0e7ff;
-}
-
-.score-content {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border);
+    margin-bottom: 0;
     display: flex;
-    gap: 16px;
     align-items: center;
+    gap: 16px;
 }
 
-.score-details {
+.score-info {
     flex: 1;
     min-width: 0;
-}
-
-.score-suggestion {
-    font-size: 0.75rem;
-    line-height: 1.5;
-    margin-top: 6px;
-}
-
-.score-suggestion .pros {
-    color: #059669;
-    font-weight: 500;
-    margin-bottom: 2px;
-}
-
-.score-suggestion .cons {
-    color: #dc2626;
-    font-weight: 500;
-    margin-bottom: 2px;
-}
-
-.score-suggestion .summary {
-    color: var(--text-primary);
-    font-weight: 500;
-    padding-top: 4px;
-    border-top: 1px dashed #cbd5e1;
 }
 
 .score-circle {
@@ -246,7 +220,7 @@ body {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .score-circle.a-plus { background: linear-gradient(135deg, #10b981, #059669); color: white; }
@@ -257,13 +231,13 @@ body {
 .score-circle.d { background: linear-gradient(135deg, #f87171, #ef4444); color: white; }
 
 .score-value {
-    font-size: 1.8rem;
+    font-size: 2rem;
     font-weight: 700;
     line-height: 1;
 }
 
 .score-label {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     opacity: 0.9;
 }
 
@@ -534,15 +508,6 @@ body {
 
     .search-form {
         flex-direction: column;
-    }
-
-    .score-content {
-        flex-direction: column;
-        text-align: center;
-    }
-
-    .score-suggestion .summary {
-        text-align: left;
     }
 
     .metrics-grid {

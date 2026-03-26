@@ -106,19 +106,23 @@
 
                 <!-- 综合评分 -->
                 <div class="score-card">
-                    <div class="score-content">
-                        <div :class="['score-circle', result.overall_score.rating.toLowerCase()]">
-                            <span class="score-value">{{ result.overall_score.score }}</span>
-                            <span class="score-label">综合得分</span>
+                    <div :class="['score-circle', result.overall_score.rating.toLowerCase()]">
+                        <span class="score-value">{{ result.overall_score.score }}</span>
+                        <span class="score-label">综合得分</span>
+                    </div>
+                    <div class="score-info">
+                        <div class="score-rating" :class="result.overall_score.rating.toLowerCase()">
+                            评级：{{ result.overall_score.rating }}
                         </div>
-                        <div class="score-details">
-                            <div class="score-rating" :class="result.overall_score.rating.toLowerCase()">
-                                评级 {{ result.overall_score.rating }}
+                        <div style="font-size: 0.75rem; margin-top: 6px; line-height: 1.6;">
+                            <div v-if="result.overall_score.suggestion.pros" style="color: #059669; margin-bottom: 4px;">
+                                <span style="font-weight: 600;">✅ 优点：</span>{{ result.overall_score.suggestion.pros }}
                             </div>
-                            <div class="score-suggestion">
-                                <div v-if="result.overall_score.suggestion.pros" class="pros">✅ {{ result.overall_score.suggestion.pros }}</div>
-                                <div v-if="result.overall_score.suggestion.cons" class="cons">⚠️ {{ result.overall_score.suggestion.cons }}</div>
-                                <div class="summary">{{ result.overall_score.suggestion.summary }}</div>
+                            <div v-if="result.overall_score.suggestion.cons" style="color: #dc2626; margin-bottom: 4px;">
+                                <span style="font-weight: 600;">⚠️ 注意：</span>{{ result.overall_score.suggestion.cons }}
+                            </div>
+                            <div style="color: var(--text-primary); font-weight: 500; padding-top: 4px; border-top: 1px dashed var(--border-color);">
+                                {{ result.overall_score.suggestion.summary }}
                             </div>
                         </div>
                     </div>
