@@ -1,20 +1,29 @@
-# 1. 进入后端目录
+# 股票分析系统
+
+## 启动方式
+
+### 后端服务
+```bash
 cd /Users/lfx/Documents/006_code/stock_analyzer/backend
+python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
 
-# 2. 激活虚拟环境
-source ../venv/bin/activate
+### 前端
+直接在浏览器打开：`frontend/index.html`
 
-# 3. 启动服务
-python main.py
+或使用 HTTP 服务器：
+```bash
+cd frontend
+python3 -m http.server 8080
+```
+然后访问：http://localhost:8080
 
+## API 地址
+后端：http://localhost:8000
 
-# 1. 启动后端（终端1）
-cd /Users/lfx/Documents/006_code/stock_analyzer
-source venv/bin/activate
-python backend/main.py
-
-# 2. 启动前端（直接在浏览器打开）
-open frontend/index.html
-# 或使用简单HTTP服务器
-cd frontend && python -m http.server 8080
-后端API地址：http://localhost:8000
+## 功能
+- 股票深度分析（财务、估值、股息、风险等）
+- 热点新闻获取
+- 股票推荐
+- 自选股管理
+- PE/PB 历史分位数计算

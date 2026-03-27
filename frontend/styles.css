@@ -294,9 +294,9 @@ body {
     grid-template-columns: repeat(3, 1fr);
 }
 
-/* 首页布局特殊处理 - 使用2:1比例 */
+/* 首页布局 - 使用2:1比例 */
 .home-grid {
-    grid-template-columns: 2fr 1fr !important;
+    grid-template-columns: 2fr 1fr;
 }
 
 .metric-card {

@@ -359,6 +359,13 @@ class NewsService:
                 news['relevance_score'] = len(matched_keywords)
                 news['impact'] = CATEGORY_NAMES.get(impact_category, {"name": "综合", "color": "#6b7280", "desc": "综合影响"})
                 news['fund_impact'] = fund_impacts  # 添加基金影响标签
+                # 提取去重后的ETF推荐
+                etf_map = {}
+                for fund in fund_impacts:
+                    for etf in (fund.get('etf_recommendations') or []):
+                        if etf.get('code') not in etf_map:
+                            etf_map[etf['code']] = etf
+                news['unique_etfs'] = list(etf_map.values())
                 filtered.append(news)
 
         # 如果过滤后太少，返回原始列表
@@ -366,9 +373,17 @@ class NewsService:
             for news in news_list:
                 title = news.get('title', '')
                 matched_keywords = [kw for kw in self.INTERESTED_KEYWORDS if kw in title]
+                fund_impacts = self._calculate_fund_impact(title)
                 news['matched_keywords'] = matched_keywords
                 news['relevance_score'] = len(matched_keywords)
-                news['fund_impact'] = self._calculate_fund_impact(title)
+                news['fund_impact'] = fund_impacts
+                # 提取去重后的ETF推荐
+                etf_map = {}
+                for fund in fund_impacts:
+                    for etf in (fund.get('etf_recommendations') or []):
+                        if etf.get('code') not in etf_map:
+                            etf_map[etf['code']] = etf
+                news['unique_etfs'] = list(etf_map.values())
             return sorted(news_list, key=lambda x: x.get('relevance_score', 0), reverse=True)
 
         return sorted(filtered, key=lambda x: x.get('relevance_score', 0), reverse=True)

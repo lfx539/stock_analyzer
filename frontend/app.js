@@ -19,6 +19,9 @@ createApp({
         const recommendations = ref([]);
         const recommendationsLoading = ref(false);
 
+        // ETF推荐
+        const etfRecommendations = ref([]);
+
         // 自选股相关
         const watchlist = ref([]);
         const watchlistLoading = ref(false);
@@ -45,6 +48,7 @@ createApp({
                 if (!response.ok) throw new Error('网络错误');
                 const data = await response.json();
                 news.value = data.news || [];
+                updateETFs();
             } catch (err) {
                 console.error('加载新闻失败:', err);
                 news.value = [];
@@ -67,6 +71,27 @@ createApp({
             } finally {
                 recommendationsLoading.value = false;
             }
+        };
+
+        // 获取去重后的ETF推荐
+        const updateETFs = () => {
+            if (!news.value || news.value.length === 0) {
+                etfRecommendations.value = [];
+                return;
+            }
+            const etfSet = new Map();
+            for (const item of news.value) {
+                const impacts = item.fund_impact || [];
+                for (const fund of impacts) {
+                    const etfs = fund.etf_recommendations || [];
+                    for (const etf of etfs) {
+                        if (etf && etf.code && !etfSet.has(etf.code)) {
+                            etfSet.set(etf.code, etf);
+                        }
+                    }
+                }
+            }
+            etfRecommendations.value = Array.from(etfSet.values());
         };
 
         // 加载自选股列表
@@ -229,6 +254,7 @@ createApp({
             newsLoading,
             // 推荐股票相关
             recommendations,
+            etfRecommendations,
             recommendationsLoading,
             // 自选股相关
             watchlist,
