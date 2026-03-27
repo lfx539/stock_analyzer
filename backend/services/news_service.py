@@ -516,21 +516,107 @@ class NewsService:
         "航空": ({"code": "512410", "name": "航空ETF", "reason": "出行需求释放，航空业绩改善"}, "512410"),
     }
 
+    # 智能ETF推荐映射（基于情感分析）
+    SMART_ETF_RULES = {
+        # 宏观政策类 - 根据情感推荐
+        "降准": {
+            "positive": {"code": "511010", "name": "华夏上证国债ETF", "reason": "降准释放流动性，债券配置价值提升"},
+            "default": {"code": "511880", "name": "银华日利ETF", "reason": "货币政策宽松，货币ETF收益稳定"}
+        },
+        "降息": {
+            "positive": {"code": "511010", "name": "华夏上证国债ETF", "reason": "降息利好债券，债券ETF配置价值提升"},
+            "default": {"code": "511880", "name": "银华日利ETF", "reason": "利率下行周期，货币基金收益较好"}
+        },
+        "宽松": {
+            "positive": {"code": "511010", "name": "华夏上证国债ETF", "reason": "货币宽松利好债券，债券ETF受益"},
+            "default": {"code": "511880", "name": "银华日利ETF", "reason": "货币政策宽松，货币ETF稳健"}
+        },
+        "流动性": {
+            "positive": {"code": "511010", "name": "华夏上证国债ETF", "reason": "流动性宽松，债券配置价值凸显"},
+            "default": {"code": "511880", "name": "银华日利ETF", "reason": "流动性管理，货币基金稳健"}
+        },
+        # 汇率类 - 根据方向推荐不同
+        "人民币": {
+            "positive": {"code": "510300", "name": "沪深300ETF", "reason": "人民币升值吸引外资，A股配置价值提升"},  # 外资增持人民币资产
+            "negative": {"code": "518880", "name": "黄金ETF", "reason": "人民币贬值预期，黄金ETF避险配置"},  # 贬值避险
+            "default": {"code": "518880", "name": "黄金ETF", "reason": "汇率波动，黄金ETF分散风险"}
+        },
+        "汇率": {
+            "positive": {"code": "510300", "name": "沪深300ETF", "reason": "汇率稳定利于外资流入，A股配置"},
+            "negative": {"code": "518880", "name": "黄金ETF", "reason": "汇率波动避险，黄金ETF配置"},
+            "default": {"code": "518880", "name": "黄金ETF", "reason": "汇率不确定，黄金ETF分散风险"}
+        },
+        "外资": {
+            "positive": {"code": "510300", "name": "沪深300ETF", "reason": "外资持续流入A股，市场增量资金充裕"},
+            "negative": {"code": "511880", "name": "银华日利ETF", "reason": "外资流出避险，货币基金防御性强"},
+            "default": {"code": "510300", "name": "沪深300ETF", "reason": "关注外资动向，A股配置"}
+        },
+        # 外汇相关
+        "外汇": {
+            "positive": {"code": "510300", "name": "沪深300ETF", "reason": "外汇流入利好A股，市场资金面改善"},
+            "negative": {"code": "518880", "name": "黄金ETF", "reason": "外汇波动避险，黄金ETF配置"},
+            "default": {"code": "518880", "name": "黄金ETF", "reason": "外汇市场不确定，黄金ETF分散风险"}
+        },
+        "美联储": {
+            "positive": {"code": "511880", "name": "银华日利ETF", "reason": "美联储政策稳定，货币基金稳健"},
+            "negative": {"code": "518880", "name": "黄金ETF", "reason": "美联储收紧预期，黄金ETF避险"},
+            "default": {"code": "511880", "name": "银华日利ETF", "reason": "关注美联储政策，货币基金防御"}
+        },
+        # 市场情绪类
+        "涨停": {"default": {"code": "512880", "name": "券商ETF", "reason": "涨停反映市场活跃，券商板块直接受益"}},
+        "大涨": {"default": {"code": "510300", "name": "沪深300ETF", "reason": "市场大涨，宽基ETF分享整体涨幅"}},
+        "上涨": {"default": {"code": "510300", "name": "沪深300ETF", "reason": "市场上行时，宽基ETF获取整体收益"}},
+        "反弹": {"default": {"code": "510300", "name": "沪深300ETF", "reason": "市场反弹行情，宽基ETF把握反弹机会"}},
+        "回升": {"default": {"code": "510300", "name": "沪深300ETF", "reason": "经济回升预期，宽基ETF配置正当时"}},
+        "放量": {"default": {"code": "510300", "name": "沪深300ETF", "reason": "放量上涨说明资金入场，看好后市"}},
+        # 行业关键词
+        "人工智能": {"default": {"code": "515980", "name": "人工智能ETF", "reason": "AI行业核心标的，受益AI产业爆发"}},
+        "AI": {"default": {"code": "515980", "name": "人工智能ETF", "reason": "人工智能产业快速发展，龙头公司业绩增长确定"}},
+        "芯片": {"default": {"code": "512760", "name": "芯片ETF", "reason": "国产芯片替代加速，半导体自主可控政策利好"}},
+        "半导体": {"default": {"code": "512760", "name": "芯片ETF", "reason": "半导体国产替代提速，景气度持续提升"}},
+        "新能源": {"default": {"code": "516160", "name": "新能源ETF", "reason": "碳中和目标明确，新能源行业长期高景气"}},
+        "光伏": {"default": {"code": "515790", "name": "光伏ETF", "reason": "光伏装机量持续增长，产业链盈利改善"}},
+        "新能源汽车": {"default": {"code": "515030", "name": "新能源车ETF", "reason": "新能源车渗透率提升，智能化加速"}},
+        "医药": {"default": {"code": "512010", "name": "医药ETF", "reason": "医药板块估值低位，反弹空间大"}},
+        "银行": {"default": {"code": "512880", "name": "券商ETF", "reason": "高股息低估值，防御属性强"}},
+        "券商": {"default": {"code": "512880", "name": "券商ETF", "reason": "资本市场活跃，券商业绩弹性大"}},
+        "证券": {"default": {"code": "512880", "name": "券商ETF", "reason": "券商业绩增长确定，板块估值修复"}},
+        "黄金": {"default": {"code": "518880", "name": "黄金ETF", "reason": "避险情绪升温，黄金ETF配置价值凸显"}},
+        "消费": {"default": {"code": "159928", "name": "消费ETF", "reason": "消费复苏确定性高，龙头公司估值修复"}},
+    }
+
     def _get_etf_recommendations(self, title: str, sentiment: str) -> List[Dict]:
-        """根据新闻标题和情感获取ETF推荐"""
+        """根据新闻标题和情感智能获取ETF推荐"""
         recommendations = []
 
         if sentiment != "positive":
             return recommendations  # 只推荐利好消息
 
-        # 优先匹配行业关键词
-        for keyword, (etf_info, code) in self.INDUSTRY_ETF_MAP.items():
+        # 智能匹配：优先使用情感规则
+        for keyword, rule in self.SMART_ETF_RULES.items():
             if keyword in title:
-                recommendations.append({
-                    "code": etf_info["code"],
-                    "name": etf_info["name"],
-                    "reason": etf_info["reason"]
-                })
+                # 如果有对应情感的配置就用，否则用default
+                if sentiment in rule:
+                    etf_info = rule[sentiment]
+                else:
+                    etf_info = rule.get("default", {})
+
+                if etf_info:
+                    recommendations.append({
+                        "code": etf_info["code"],
+                        "name": etf_info["name"],
+                        "reason": etf_info["reason"]
+                    })
+
+        # 去重
+        seen = set()
+        unique = []
+        for r in recommendations:
+            if r["code"] not in seen:
+                seen.add(r["code"])
+                unique.append(r)
+
+        return unique[:2]  # 最多返回2个
 
         # 去重并限制数量
         seen = set()
