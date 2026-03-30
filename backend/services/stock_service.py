@@ -377,11 +377,12 @@ class StockDataService:
         stocks = []
 
         try:
-            # 东方财富股票列表接口
-            url = "https://24.push2.eastmoney.com/api/qt/clist/get"
+            # 尝试多个API端点获取完整股票列表
+            # 方法1: 东方财富完整列表
+            url = "https://push2.eastmoney.com/api/qt/clist/get"
             params = {
                 "pn": 1,
-                "pz": 5000,
+                "pz": 6000,
                 "po": 1,
                 "np": 1,
                 "ut": "bd1d9ddb04089700cf9c27f6f7426281",
@@ -389,23 +390,33 @@ class StockDataService:
                 "invt": 2,
                 "fid": "f3",
                 "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23",
-                "fields": "f1,f2,f3,f4,f5,f12,f13,f14,f100,f152"
+                "fields": "f2,f3,f4,f12,f14",
+                "_": str(int(time.time() * 1000))
             }
 
-            resp = requests.get(url, params=params, headers=self.headers, timeout=30)
+            # 不使用代理
+            resp = requests.get(url, params=params, headers=self.headers, timeout=30, proxies={"http": None, "https": None})
             if resp.status_code == 200:
                 data = resp.json()
                 diff = data.get("data", {}).get("diff", [])
+                print(f"[股票列表] API返回 {len(diff)} 条记录")
+
+                # 如果返回数量太少，添加常用股票作为补充
+                if len(diff) < 500:
+                    stocks.extend(self._get_common_stocks())
+
                 for item in diff:
                     code = str(item.get("f12", ""))
                     name = item.get("f14", "")
                     if code and name:
                         # 排除ST股票和退市股票
-                        if "ST" not in name and "*ST" not in name and name:
-                            stocks.append({
-                                "code": code,
-                                "name": name
-                            })
+                        if "ST" not in name and "*ST" not in name:
+                            # 避免重复
+                            if not any(s["code"] == code for s in stocks):
+                                stocks.append({
+                                    "code": code,
+                                    "name": name
+                                })
 
                 # 更新缓存
                 self._all_stocks_cache = stocks
@@ -414,8 +425,148 @@ class StockDataService:
                 return stocks
         except Exception as e:
             print(f"[股票列表] 获取失败: {e}")
+            # 如果API失败，返回常用股票列表
+            stocks = self._get_common_stocks()
+            self._all_stocks_cache = stocks
+            self._cache_time = time.time()
+            return stocks
 
         return stocks
+
+    def _get_common_stocks(self) -> List[Dict]:
+        """获取常用股票列表"""
+        return [
+            # 主板
+            {"code": "600519", "name": "贵州茅台"},
+            {"code": "600036", "name": "招商银行"},
+            {"code": "601398", "name": "工商银行"},
+            {"code": "600028", "name": "中国石化"},
+            {"code": "601318", "name": "中国平安"},
+            {"code": "600900", "name": "长江电力"},
+            {"code": "601888", "name": "中国中免"},
+            {"code": "601012", "name": "隆基绿能"},
+            {"code": "600276", "name": "恒瑞医药"},
+            {"code": "600887", "name": "伊利股份"},
+            {"code": "601328", "name": "交通银行"},
+            {"code": "601288", "name": "农业银行"},
+            {"code": "601988", "name": "中国银行"},
+            {"code": "601939", "name": "建设银行"},
+            {"code": "601166", "name": "兴业银行"},
+            {"code": "600000", "name": "浦发银行"},
+            {"code": "600016", "name": "民生银行"},
+            {"code": "600015", "name": "华夏银行"},
+            {"code": "601998", "name": "中信银行"},
+            {"code": "601229", "name": "上海银行"},
+            {"code": "600030", "name": "中信证券"},
+            {"code": "600031", "name": "三一重工"},
+            {"code": "600585", "name": "海螺水泥"},
+            {"code": "601857", "name": "中国石油"},
+            {"code": "601668", "name": "中国建筑"},
+            {"code": "600048", "name": "保利发展"},
+            {"code": "601899", "name": "紫金矿业"},
+            {"code": "600547", "name": "山东黄金"},
+            {"code": "600489", "name": "中金黄金"},
+            {"code": "600518", "name": "康美药业"},
+            {"code": "600750", "name": "江中药业"},
+            {"code": "600436", "name": "片仔癀"},
+            {"code": "600664", "name": "哈药股份"},
+            {"code": "600518", "name": "康美药业"},
+            # 创业板
+            {"code": "000858", "name": "五粮液"},
+            {"code": "002594", "name": "比亚迪"},
+            {"code": "300750", "name": "宁德时代"},
+            {"code": "000001", "name": "平安银行"},
+            {"code": "000002", "name": "万科A"},
+            {"code": "000651", "name": "格力电器"},
+            {"code": "000725", "name": "京东方A"},
+            {"code": "000333", "name": "美的集团"},
+            {"code": "000100", "name": "TCL科技"},
+            {"code": "000063", "name": "中兴通讯"},
+            {"code": "000538", "name": "云南白药"},
+            {"code": "000566", "name": "海南海药"},
+            {"code": "000568", "name": "泸州老窖"},
+            {"code": "000596", "name": "古井贡酒"},
+            {"code": "000799", "name": "金徽酒"},
+            {"code": "000810", "name": "华安保险"},
+            {"code": "000513", "name": "丽珠集团"},
+            {"code": "000686", "name": "东北证券"},
+            {"code": "000166", "name": "申万宏源"},
+            # 科创板
+            {"code": "688981", "name": "中芯国际"},
+            {"code": "688396", "name": "华润微"},
+            {"code": "688008", "name": "澜起科技"},
+            {"code": "688012", "name": "中微公司"},
+            {"code": "688126", "name": "沪硅产业"},
+            {"code": "688065", "name": "凯赛生物"},
+            {"code": "688339", "name": "亿华通"},
+            {"code": "688321", "name": "华海清科"},
+            {"code": "688200", "name": "华峰测控"},
+            {"code": "688187", "name": "时代天使"},
+            # 热门中小板
+            {"code": "002415", "name": "海康威视"},
+            {"code": "002475", "name": "立讯精密"},
+            {"code": "002230", "name": "科大讯飞"},
+            {"code": "002410", "name": "广联达"},
+            {"code": "002236", "name": "大华股份"},
+            {"code": "002371", "name": "北方华创"},
+            {"code": "002049", "name": "紫光国微"},
+            {"code": "002027", "name": "分众传媒"},
+            {"code": "002555", "name": "三七互娱"},
+            {"code": "002185", "name": "华天科技"},
+            {"code": "002129", "name": "中环股份"},
+            {"code": "002202", "name": "金风科技"},
+            {"code": "002714", "name": "牧原股份"},
+            {"code": "002311", "name": "海大集团"},
+            {"code": "002747", "name": "埃斯顿"},
+            {"code": "002624", "name": "金瑞矿业"},
+            {"code": "002242", "name": "维维股份"},
+            {"code": "002032", "name": "苏泊尔"},
+            {"code": "002508", "name": "老板电器"},
+            # 更多热门股票
+            {"code": "300059", "name": "东方财富"},
+            {"code": "300015", "name": "爱尔眼科"},
+            {"code": "300124", "name": "汇川技术"},
+            {"code": "300033", "name": "同花顺"},
+            {"code": "300347", "name": "泰格医药"},
+            {"code": "300274", "name": "阳光电源"},
+            {"code": "300498", "name": "中科曙光"},
+            {"code": "300003", "name": "乐普医疗"},
+            {"code": "300287", "name": "飞利信"},
+            {"code": "300183", "name": "东软载波"},
+            {"code": "300012", "name": "华测检测"},
+            {"code": "300641", "name": "正业国际"},
+            {"code": "300115", "name": "长盈精密"},
+            {"code": "300383", "name": "光迅科技"},
+            {"code": "300026", "name": "红日药业"},
+            {"code": "300558", "name": "贝达药业"},
+            {"code": "600570", "name": "恒生电子"},
+            {"code": "600588", "name": "用友网络"},
+            {"code": "600703", "name": "三安光电"},
+            {"code": "600460", "name": "士兰微"},
+            {"code": "600522", "name": "中天科技"},
+            {"code": "600850", "name": "华东医药"},
+            {"code": "600438", "name": "通威股份"},
+            {"code": "600845", "name": "宝信软件"},
+            {"code": "600431", "name": "北方稀土"},
+            {"code": "600111", "name": "北方稀土"},
+            {"code": "600362", "name": "江西铜业"},
+            {"code": "000878", "name": "云南铜业"},
+            {"code": "600362", "name": "江西铜业"},
+            {"code": "601877", "name": "正泰电器"},
+            {"code": "601919", "name": "中远海控"},
+            {"code": "601111", "name": "中国交建"},
+            {"code": "601766", "name": "中国中车"},
+            {"code": "601865", "name": "莱特光电"},
+            {"code": "601628", "name": "中国人寿"},
+            {"code": "601601", "name": "中国太保"},
+            {"code": "601336", "name": "新华保险"},
+            {"code": "603259", "name": "药明康德"},
+            {"code": "603939", "name": "益丰药房"},
+            {"code": "603883", "name": "金陵药业"},
+            {"code": "603589", "name": "金种子酒"},
+            {"code": "600809", "name": "山西汾酒"},
+            {"code": "600197", "name": "伊力特"},
+        ]
 
     def search_stocks(self, keyword: str) -> List[Dict]:
         """根据关键词搜索股票"""

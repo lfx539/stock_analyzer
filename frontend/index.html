@@ -23,13 +23,28 @@
         <!-- 搜索框 -->
         <div class="search-box">
             <form class="search-form" @submit.prevent="analyze">
-                <input
-                    type="text"
-                    class="search-input"
-                    v-model="stockCode"
-                    placeholder="请输入股票代码（如：600028）"
-                    maxlength="6"
-                >
+                <div class="search-input-wrapper" style="position: relative; flex: 1;">
+                    <input
+                        type="text"
+                        class="search-input"
+                        v-model="stockCode"
+                        @input="onSearchInput"
+                        @focus="showSearchResults = true"
+                        @blur="hideSearchResults"
+                        placeholder="请输入股票代码或名称（如：600028 或 工商银行）"
+                        maxlength="10"
+                    >
+                    <!-- 搜索结果下拉列表 -->
+                    <div v-if="showSearchResults && searchResults.length > 0" class="search-dropdown">
+                        <div v-for="item in searchResults"
+                             :key="item.code"
+                             class="search-dropdown-item"
+                             @mousedown="selectStock(item)">
+                            <span class="stock-name">{{ item.name }}</span>
+                            <span class="stock-code">{{ item.code }}</span>
+                        </div>
+                    </div>
+                </div>
                 <button type="submit" class="search-btn" :disabled="loading">
                     {{ loading ? '分析中...' : '开始分析' }}
                 </button>
@@ -47,9 +62,9 @@
             {{ error }}
         </div>
 
-        <!-- 第一行：新闻+自选股 -->
+        <!-- 第一行：新闻+右侧内容 -->
         <div style="display: flex; flex-wrap: nowrap; gap: 12px; margin-bottom: 16px; width: 100%;">
-            <!-- 新闻卡片 -->
+            <!-- 左侧新闻卡片（2/3） -->
             <div class="metric-card" style="flex: 2; min-width: 0;">
                 <div class="metric-header">
                     <span class="metric-name">今日热点财经</span>
@@ -58,7 +73,7 @@
                 <div v-if="newsLoading" class="loading" style="padding: 20px;">
                     <div class="spinner" style="width: 24px; height: 24px;"></div>
                 </div>
-                <div v-else-if="news.length > 0" class="news-list" style="max-height: 320px; overflow-y: auto;">
+                <div v-else-if="news.length > 0" class="news-list" style="max-height: 420px; overflow-y: auto;">
                     <div v-for="item in news" :key="item.url" style="padding: 12px; border-bottom: 1px solid var(--border-color);">
                         <!-- 新闻标题 -->
                         <div style="font-size: 0.85rem; line-height: 1.4; margin-bottom: 8px; color: var(--text-primary);">
@@ -89,6 +104,17 @@
                                     <div style="font-size: 0.65rem; color: #059669; margin-top: 2px;">{{ etf.reason }}</div>
                                 </div>
                             </div>
+                            <!-- 动态股票推荐（仅利好新闻显示） -->
+                            <div v-if="isPositiveNews(item) && item.recommended_stocks && item.recommended_stocks.length > 0" style="margin-top: 8px; padding: 8px; background: #eff6ff; border-radius: 4px;">
+                                <div style="font-size: 0.65rem; color: #1d4ed8; font-weight: 500; margin-bottom: 4px;">📈 相关股票</div>
+                                <div v-for="stock in item.recommended_stocks" :key="stock.code"
+                                     @click="analyzeStock(stock.code)"
+                                     style="font-size: 0.7rem; color: var(--text-primary); padding: 4px 6px; background: white; border-radius: 4px; margin-bottom: 4px; cursor: pointer;">
+                                    <span style="font-weight: 600;">{{ stock.name }}</span>
+                                    <span style="color: var(--text-light); margin-left: 4px;">{{ stock.code }}</span>
+                                    <span v-if="stock.reason" style="font-size: 0.6rem; color: #6b7280; margin-left: 4px;">{{ stock.reason }}</span>
+                                </div>
+                            </div>
                         </div>
                         <!-- 来源和关键词 -->
                         <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-light);">
@@ -102,13 +128,14 @@
                 <div v-else style="text-align: center; color: var(--text-light); padding: 20px;">暂无热点新闻</div>
             </div>
 
-
-            <!-- 自选股卡片 -->
-            <div class="metric-card" style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
-                <div class="metric-header">
-                    <span class="metric-name">我的自选股</span>
-                    <span class="metric-status" style="background: #d1fae5; color: #065f46; cursor: pointer;" @click="showAddWatchlist = true">+ 添加</span>
-                </div>
+            <!-- 右侧列：自选股+股票推荐 -->
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
+                <!-- 自选股卡片 -->
+                <div class="metric-card" style="flex: 1; display: flex; flex-direction: column;">
+                    <div class="metric-header">
+                        <span class="metric-name">我的自选股</span>
+                        <span class="metric-status" style="background: #d1fae5; color: #065f46; cursor: pointer;" @click="showAddWatchlist = true">+ 添加</span>
+                    </div>
 
                 <!-- 添加自选股弹窗 -->
                 <div v-if="showAddWatchlist" style="display: flex; gap: 8px; margin-bottom: 12px;">
@@ -152,23 +179,24 @@
                     </div>
                 </div>
                 <div v-else style="text-align: center; color: var(--text-light); padding: 20px;">点击+添加自选股</div>
-            </div>
-        </div>
+                </div>
 
-        <!-- 股票推荐（简洁版） -->
-        <div v-if="recommendations.length > 0" style="margin-top: 16px; padding: 16px; background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-primary);">今日股票推荐</span>
-                <span style="font-size: 0.75rem; color: var(--text-light);">根据热点新闻动态推荐</span>
-            </div>
-            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                <span v-for="item in recommendations" :key="item.code"
-                      @click="analyzeStock(item.code)"
-                      style="display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; background: var(--bg-tertiary); border-radius: 20px; font-size: 0.8rem; color: var(--text-primary); cursor: pointer; transition: all 0.2s;"
-                      onmouseover="this.style.background='#e0f2fe';this.style.color='#0369a1'" onmouseout="this.style.background='var(--bg-tertiary)';this.style.color='var(--text-primary)'">
-                    <span style="font-weight: 600;">{{ item.name }}</span>
-                    <span style="color: var(--text-light); font-size: 0.75rem;">{{ item.code }}</span>
-                </span>
+                <!-- 股票推荐 -->
+                <div v-if="recommendations.length > 0" class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-name">今日股票推荐</span>
+                        <span class="metric-status" style="background: #fef3c7; color: #92400e;">{{ recommendations.length }}只</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                        <span v-for="item in recommendations" :key="item.code"
+                              @click="analyzeStock(item.code)"
+                              style="display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; background: var(--bg-tertiary); border-radius: 16px; font-size: 0.75rem; color: var(--text-primary); cursor: pointer; transition: all 0.2s;"
+                              onmouseover="this.style.background='#e0f2fe';this.style.color='#0369a1'" onmouseout="this.style.background='var(--bg-tertiary)';this.style.color='var(--text-primary)'">
+                            <span style="font-weight: 600;">{{ item.name }}</span>
+                            <span style="color: var(--text-light);">{{ item.code }}</span>
+                        </span>
+                    </div>
+                </div>
             </div>
         </div>
 

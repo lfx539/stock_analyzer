@@ -28,6 +28,58 @@ createApp({
         const showAddWatchlist = ref(false);
         const newWatchlistCode = ref('');
 
+        // 搜索相关
+        const searchResults = ref([]);
+        const showSearchResults = ref(false);
+        let searchTimeout = null;
+
+        // 搜索股票
+        const onSearchInput = async () => {
+            const query = stockCode.value.trim();
+
+            // 清除之前的定时器
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+
+            // 如果输入太短，清空结果
+            if (query.length < 1) {
+                searchResults.value = [];
+                showSearchResults.value = false;
+                return;
+            }
+
+            // 防抖：300ms后执行搜索
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const response = await fetchWithTimeout(`${API_BASE}/api/search?q=${encodeURIComponent(query)}&limit=10`, {}, 5000);
+                    if (!response.ok) throw new Error('搜索失败');
+                    const data = await response.json();
+                    searchResults.value = data.stocks || [];
+                    showSearchResults.value = searchResults.value.length > 0;
+                } catch (err) {
+                    console.error('搜索失败:', err);
+                    searchResults.value = [];
+                }
+            }, 300);
+        };
+
+        // 选择股票
+        const selectStock = (stock) => {
+            stockCode.value = stock.code;
+            showSearchResults.value = false;
+            searchResults.value = [];
+            // 自动开始分析
+            analyzeStock(stock.code);
+        };
+
+        // 隐藏搜索结果（延迟处理，避免点击被忽略）
+        const hideSearchResults = () => {
+            setTimeout(() => {
+                showSearchResults.value = false;
+            }, 200);
+        };
+
         // 带超时的fetch函数
         const fetchWithTimeout = async (url, options = {}, timeout = 8000) => {
             const controller = new AbortController();
@@ -49,6 +101,31 @@ createApp({
                 const data = await response.json();
                 news.value = data.news || [];
                 updateETFs();
+
+                // 为每条新闻获取动态股票推荐
+                for (const item of news.value) {
+                    try {
+                        const keywords = item.title || '';
+                        const resp = await fetchWithTimeout(
+                            `${API_BASE}/api/recommend_stocks?keywords=${encodeURIComponent(keywords)}&limit=3`,
+                            {}, 5000
+                        );
+                        if (resp.ok) {
+                            const stockData = await resp.json();
+                            if (stockData.stocks && stockData.stocks.length > 0) {
+                                // 过滤掉ETF和指数，只保留股票
+                                const stocks = stockData.stocks.filter(s =>
+                                    !s.name.includes('ETF') &&
+                                    !s.name.includes('指数') &&
+                                    !s.code.startsWith('BK')
+                                );
+                                item.recommended_stocks = stocks.slice(0, 3);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('获取股票推荐失败:', e);
+                    }
+                }
             } catch (err) {
                 console.error('加载新闻失败:', err);
                 news.value = [];
@@ -167,20 +244,35 @@ createApp({
         };
 
         // 分析股票 - 跳转到分析页面
-        const analyze = () => {
+        const analyze = async () => {
             if (!stockCode.value) {
                 error.value = '请输入股票代码';
                 return;
             }
 
-            // 验证股票代码
-            if (!/^\d{6}$/.test(stockCode.value)) {
-                error.value = '请输入6位数字的股票代码';
+            const input = stockCode.value.trim();
+
+            // 如果是6位数字，直接分析
+            if (/^\d{6}$/.test(input)) {
+                window.location.href = `analyze.html?code=${input}`;
                 return;
             }
 
-            // 跳转到分析页面
-            window.location.href = `analyze.html?code=${stockCode.value}`;
+            // 如果不是6位数字，尝试搜索并取第一个结果
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/api/search?q=${encodeURIComponent(input)}&limit=1`, {}, 5000);
+                if (!response.ok) throw new Error('搜索失败');
+                const data = await response.json();
+
+                if (data.stocks && data.stocks.length > 0) {
+                    // 找到匹配的股票，直接分析第一个
+                    window.location.href = `analyze.html?code=${data.stocks[0].code}`;
+                } else {
+                    error.value = '未找到匹配的股票';
+                }
+            } catch (err) {
+                error.value = '搜索失败，请重试';
+            }
         };
 
         // 分析指定股票（用于推荐列表点击）
@@ -232,6 +324,12 @@ createApp({
             return value + '%';
         };
 
+        // 判断新闻是否为利好（只要有一个基金类型是利好就显示推荐）
+        const isPositiveNews = (newsItem) => {
+            const impacts = newsItem.fund_impact || [];
+            return impacts.some(impact => impact.sentiment === 'positive');
+        };
+
         // 初始化加载
         loadNews();
         loadWatchlist();
@@ -249,6 +347,7 @@ createApp({
             getPercentileClass,
             formatValue,
             formatPercent,
+            isPositiveNews,
             // 新闻相关
             news,
             newsLoading,
@@ -263,7 +362,13 @@ createApp({
             newWatchlistCode,
             addToWatchlist,
             removeFromWatchlist,
-            copyCode
+            copyCode,
+            // 搜索相关
+            searchResults,
+            showSearchResults,
+            onSearchInput,
+            selectStock,
+            hideSearchResults
         };
     }
 }).mount('#app');

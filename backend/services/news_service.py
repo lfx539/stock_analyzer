@@ -15,7 +15,7 @@ class NewsService:
         "macro_fund": {
             "name": "宏观基金",
             "desc": "影响债券/货币/指数基金",
-            "keywords": ["央行", "降准", "降息", "加息", "利率", "货币政策", "财政政策", "国债", "债券",
+            "keywords": ["央行", "降准", "降息", "加息", "利率", "货��政策", "财政政策", "国债", "债券",
                         "GDP", "CPI", "PPI", "通胀", "LPR", "MLF", "社融", "M2", "信贷", "美联储",
                         "汇率", "人民币", "外汇", "印花税", "资金面", "流动性"],
             "color": "#8b5cf6",
@@ -583,6 +583,38 @@ class NewsService:
         "证券": {"default": {"code": "512880", "name": "券商ETF", "reason": "券商业绩增长确定，板块估值修复"}},
         "黄金": {"default": {"code": "518880", "name": "黄金ETF", "reason": "避险情绪升温，黄金ETF配置价值凸显"}},
         "消费": {"default": {"code": "159928", "name": "消费ETF", "reason": "消费复苏确定性高，龙头公司估值修复"}},
+        "食品": {"default": {"code": "515710", "name": "食品ETF", "reason": "食品饮料是刚需，业绩稳定增长"}},
+        "饮料": {"default": {"code": "161229", "name": "酒ETF", "reason": "酒类龙头业绩确定，高端白酒景气度高"}},
+        "白酒": {"default": {"code": "161229", "name": "酒ETF", "reason": "鹏华酒ETF跟踪中证酒指数，白酒龙头壁垒高"}},
+        "家电": {"default": {"code": "159996", "name": "家电ETF", "reason": "家电以旧换新政策刺激，需求回暖"}},
+        "医疗": {"default": {"code": "512010", "name": "医药ETF", "reason": "医疗需求刚性，集采影响边际改善"}},
+        "银行": {"default": {"code": "512800", "name": "银行ETF", "reason": "高股息低估值，防御属性强"}},
+        "保险": {"default": {"code": "159903", "name": "保险ETF", "reason": "保险负债端改善，估值修复可期"}},
+        "地产": {"default": {"code": "159867", "name": "地产ETF", "reason": "政策持续放松，地产板块估值修复"}},
+        "房地产": {"default": {"code": "159867", "name": "地产ETF", "reason": "地产政策底已现，关注龙头公司"}},
+        "钢铁": {"default": {"code": "515210", "name": "钢铁ETF", "reason": "供需格局改善，钢价有支撑"}},
+        "建筑": {"default": {"code": "159994", "name": "基建ETF", "reason": "基建投资发力，稳增长政策支持"}},
+        "航运": {"default": {"code": "512410", "name": "航运ETF", "reason": "航运周期向上，关注集运龙头"}},
+        "航空": {"default": {"code": "512410", "name": "航运ETF", "reason": "出行需求释放，航空业绩改善"}},
+        "云计算": {"default": {"code": "516510", "name": "云计算ETF", "reason": "企业数字化转型加速，云计算需求旺盛"}},
+        "数字经济": {"default": {"code": "515580", "name": "数字经济ETF", "reason": "政策重点扶持，数字经济发展进入快车道"}},
+        "软件": {"default": {"code": "515230", "name": "软件ETF", "reason": "国产软件替代加速，信创板块持续受益"}},
+        "互联网": {"default": {"code": "513050", "name": "互联网ETF", "reason": "平台经济估值修复，互联网龙头盈利改善"}},
+        "5G": {"default": {"code": "515050", "name": "5GETF", "reason": "5G网络建设持续推进，产业链业绩释放"}},
+        "算力": {"default": {"code": "515220", "name": "大数据ETF", "reason": "算力需求爆发，数据中心景气度高"}},
+        "机器人": {"default": {"code": "562800", "name": "机器人ETF", "reason": "人形机器人产业化加速，市场空间广阔"}},
+        "风电": {"default": {"code": "159937", "name": "风电ETF", "reason": "风电发展迅速，海上风电空间大"}},
+        "锂电池": {"default": {"code": "159841", "name": "锂电池ETF", "reason": "新能源汽车带动锂电池需求持续增长"}},
+        "储能": {"default": {"code": "159995", "name": "储能ETF", "reason": "储能政策利好，行业进入快速发展期"}},
+        "油气": {"default": {"code": "159867", "name": "油气ETF", "reason": "能源安全保障，油气开采景气度高"}},
+        "石油": {"default": {"code": "159867", "name": "油气ETF", "reason": "国际油价高位震荡，油气板块受益"}},
+        "煤炭": {"default": {"code": "161032", "name": "煤炭指数", "reason": "高股息低估值，防御属性强"}},
+        "电力": {"default": {"code": "159611", "name": "电力ETF", "reason": "电价改革利好，电力企业盈利改善"}},
+        "稀土": {"default": {"code": "159713", "name": "稀土ETF", "reason": "稀土是战略资源，供给格局持续优化"}},
+        "锂": {"default": {"code": "159841", "name": "锂电池ETF", "reason": "锂资源需求旺盛，价格有支撑"}},
+        "铜": {"default": {"code": "159997", "name": "有色ETF", "reason": "铜是经济晴雨表，需求预期改善"}},
+        "铝": {"default": {"code": "159997", "name": "有色ETF", "reason": "铝价高位运行，龙头企业受益"}},
+        "有色金属": {"default": {"code": "159997", "name": "有色ETF", "reason": "有色金属价格上涨，周期行情启动"}},
     }
 
     def _get_etf_recommendations(self, title: str, sentiment: str) -> List[Dict]:
@@ -592,7 +624,7 @@ class NewsService:
         if sentiment != "positive":
             return recommendations  # 只推荐利好消息
 
-        # 智能匹配：优先使用情感规则
+        # 智能匹配：优先使用情感规则(SMART_ETF_RULES)
         for keyword, rule in self.SMART_ETF_RULES.items():
             if keyword in title:
                 # 如果有对应情感的配置就用，否则用default
@@ -602,6 +634,16 @@ class NewsService:
                     etf_info = rule.get("default", {})
 
                 if etf_info:
+                    recommendations.append({
+                        "code": etf_info["code"],
+                        "name": etf_info["name"],
+                        "reason": etf_info["reason"]
+                    })
+
+        # 如果SMART_ETF_RULES没有匹配到，回退到INDUSTRY_ETF_MAP
+        if not recommendations:
+            for keyword, (etf_info, code) in self.INDUSTRY_ETF_MAP.items():
+                if keyword in title:
                     recommendations.append({
                         "code": etf_info["code"],
                         "name": etf_info["name"],
