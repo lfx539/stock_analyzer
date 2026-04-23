@@ -676,58 +676,16 @@
                 </div>
             </div>
 
-            <!-- 风险排查 + 市场时机 并排 -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
-                <!-- 风险排查 -->
-                <div class="metric-card" v-if="riskCheck">
-                    <div class="metric-header">
-                        <span class="metric-name">风险排查<span class="help-icon" data-tip="需全部满足才通过：&#10;• 质押率<60%：高质押可能被平仓&#10;• 商誉<20%：高商誉可能减值&#10;• 审计意见标准：非标准意见可能有问题">?</span></span>
-                        <span class="metric-status" :style="{background: riskCheck.status_color === 'green' ? '#d1fae5' : '#fee2e2', color: riskCheck.status_color === 'green' ? '#065f46' : '#991b1b'}">
-                            {{ riskCheck.status }}
-                        </span>
-                    </div>
-                    <div style="margin-top: 8px; font-size: 0.8rem; color: var(--text-primary);">
-                        {{ riskCheck.suggestion }}
-                    </div>
-                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color);" v-if="riskCheck.conditions">
-                        <div style="font-size: 0.7rem; color: var(--text-light); margin-bottom: 6px;">需全部满足：</div>
-                        <div v-for="(cond, idx) in riskCheck.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border-color); font-size: 0.8rem;">
-                            <div>
-                                <span style="font-weight: 500;">{{ cond.name }}</span>
-                                <span style="color: var(--text-light); font-size: 0.7rem; margin-left: 4px;">{{ cond.desc }}</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <span style="font-weight: 500;">{{ cond.value }}</span>
-                                <span :style="{color: cond.pass ? '#059669' : '#dc2626'}">{{ cond.pass ? '✓' : '✗' }}</span>
-                            </div>
-                        </div>
-                    </div>
+            <!-- 风险排查（简化版） -->
+            <div class="metric-card" v-if="riskCheck" style="margin-top: 16px; padding: 12px;">
+                <div class="metric-header">
+                    <span class="metric-name">风险排查<span class="help-icon" data-tip="排除有明显风险的股票：&#10;• 质押率<60%：避免被平仓风险&#10;• 商誉<20%：避免减值风险&#10;• 审计意见标准：避免财务问题">?</span></span>
+                    <span class="metric-status" :style="{background: riskCheck.status_color === 'green' ? '#d1fae5' : '#fee2e2', color: riskCheck.status_color === 'green' ? '#065f46' : '#991b1b'}">
+                        {{ riskCheck.status }}
+                    </span>
                 </div>
-
-                <!-- 市场时机 -->
-                <div class="metric-card" v-if="marketTiming">
-                    <div class="metric-header">
-                        <span class="metric-name">市场时机</span>
-                        <span class="metric-status" :style="{background: marketTiming.signal_color === 'green' ? '#d1fae5' : '#fef3c7', color: marketTiming.signal_color === 'green' ? '#065f46' : '#92400e'}">
-                            {{ marketTiming.signal }}
-                        </span>
-                    </div>
-                    <div style="margin-top: 8px; font-size: 0.8rem; color: var(--text-primary);">
-                        {{ marketTiming.suggestion }}
-                    </div>
-                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color);" v-if="marketTiming.conditions">
-                        <div style="font-size: 0.7rem; color: var(--text-light); margin-bottom: 6px;">满足任一条件即可：</div>
-                        <div v-for="(cond, idx) in marketTiming.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border-color); font-size: 0.8rem;">
-                            <div>
-                                <span style="font-weight: 500;">{{ cond.name }}</span>
-                                <span style="color: var(--text-light); font-size: 0.7rem; margin-left: 4px;">{{ cond.desc }}</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 6px;">
-                                <span style="font-weight: 500;">{{ cond.value }}</span>
-                                <span :style="{color: cond.pass ? '#059669' : '#dc2626'}">{{ cond.pass ? '✓' : '✗' }}</span>
-                            </div>
-                        </div>
-                    </div>
+                <div style="margin-top: 8px; font-size: 0.8rem; color: var(--text-primary);">
+                    {{ riskCheck.suggestion }}
                 </div>
             </div>
 
@@ -1035,7 +993,6 @@
                 const cashflowAnalysis = computed(() => result.value?.cashflow_analysis || null);
                 const payoutAnalysis = computed(() => result.value?.payout_analysis || null);
                 const riskCheck = computed(() => result.value?.risk_check || null);
-                const marketTiming = computed(() => result.value?.market_timing || null);
 
                 // 从URL获取股票代码
                 onMounted(() => {
@@ -1865,7 +1822,6 @@
                     cashflowAnalysis,
                     payoutAnalysis,
                     riskCheck,
-                    marketTiming,
                     inWatchlist,
                     watchlist,
                     goAnalyze,
