@@ -385,7 +385,7 @@
                 <!-- 资金流向 -->
                 <div class="metric-card" style="padding: 12px;">
                     <div class="metric-header">
-                        <span class="metric-name">资金流向</span>
+                        <span class="metric-name">资金流向<span class="help-icon" data-tip="主力 = 超大单 + 大单&#10;散户 = 中单 + 小单&#10;主力净流入 + 散户净流入 = 0">?</span></span>
                         <span v-if="moneyFlowData" class="metric-status" :style="{
                             background: moneyFlowData.main_net >= 0 ? '#d1fae5' : '#fee2e2',
                             color: moneyFlowData.main_net >= 0 ? '#065f46' : '#991b1b'
@@ -393,16 +393,10 @@
                             主力{{ moneyFlowData.main_net >= 0 ? '流入' : '流出' }} {{ formatMoney(Math.abs(moneyFlowData.main_net), 1) }}万
                         </span>
                     </div>
-                    <div v-if="moneyFlowData" style="font-size: 0.65rem; color: #6b7280; margin-bottom: 8px;">
-                        公式: 主力净流入 = 超大单净流入 + 大单净流入 = {{ formatMoney(moneyFlowData.super_net || 0, 1) }} + {{ formatMoney(moneyFlowData.big_net || 0, 1) }} = {{ formatMoney(moneyFlowData.main_net || 0, 1) }}万
-                    </div>
                     <div v-if="moneyFlowData" style="margin-top: 8px;">
                         <!-- 主力资金 -->
                         <div style="margin-bottom: 10px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                <span style="font-size: 0.75rem; color: var(--text-light);">主力资金（万元）</span>
-                                <span style="font-size: 0.65rem; color: #6b7280;">主力 = 超大单 + 大单</span>
-                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 4px;">主力资金（万元）</div>
                             <div style="display: flex; gap: 4px; height: 24px;">
                                 <div style="flex: 1; background: #d1fae5; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem;">
                                     流入 {{ formatMoney(moneyFlowData.main_inflow, 0) }}
