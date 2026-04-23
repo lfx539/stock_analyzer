@@ -338,33 +338,20 @@ class StockDataService:
             return "未知"
 
     def _get_dividend_from_api(self, stock_code: str) -> float:
-        """从东方财富API获取最近一年每股分红"""
+        """从东方财富API获取最近一次每股分红（不限制时间，取最近一次已实施的）"""
         market = "sh" if stock_code.startswith("6") else "sz"
         url = "https://emweb.eastmoney.com/PC_HSF10/BonusFinancing/PageAjax"
         params = {"code": f"{market}{stock_code}"}
 
         try:
-            resp = requests.get(url, params=params, headers=self.headers, timeout=10)
+            resp = requests.get(url, params=params, headers=self.headers, timeout=10, proxies={"http": None, "https": None})
             if resp.status_code == 200:
                 data = resp.json()
                 fhyx = data.get("fhyx", [])
 
-                # 只取最近一年（过去365天）已实施的分红
-                from datetime import datetime, timedelta
-                one_year_ago = datetime.now() - timedelta(days=365)
-                total_div = 0
-
+                # 遍历找到最近一次已实施的现金分红
                 for item in fhyx:
                     if item.get("ASSIGN_PROGRESS") == "实施方案":
-                        # 检查日期是否在最近一年内
-                        notice_date = item.get("NOTICE_DATE", "")
-                        try:
-                            date_obj = datetime.strptime(notice_date[:10], "%Y-%m-%d")
-                            if date_obj < one_year_ago:
-                                continue
-                        except:
-                            pass
-
                         profile = item.get("IMPL_PLAN_PROFILE", "")
                         # 解析 "10派X元" 格式
                         if "派" in profile and "元" in profile:
@@ -373,15 +360,66 @@ class StockDataService:
                                 match = re.search(r'10派([\d.]+)元', profile)
                                 if match:
                                     div_per_10 = float(match.group(1))
-                                    total_div += div_per_10 / 10  # 转换为每股分红
+                                    return round(div_per_10 / 10, 2)  # 返回每股分红
                             except:
                                 pass
 
-                return round(total_div, 2) if total_div > 0 else 0
         except Exception as e:
             print(f"获取{stock_code}分红数据失败: {e}")
 
         return 0
+
+    def get_dividend_history(self, stock_code: str, years: int = 5) -> List[Dict]:
+        """获取分红历史记录"""
+        market = "sh" if stock_code.startswith("6") else "sz"
+        url = "https://emweb.eastmoney.com/PC_HSF10/BonusFinancing/PageAjax"
+        params = {"code": f"{market}{stock_code}"}
+
+        history = []
+        try:
+            resp = requests.get(url, params=params, headers=self.headers, timeout=10, proxies={"http": None, "https": None})
+            if resp.status_code == 200:
+                data = resp.json()
+                fhyx = data.get("fhyx", [])
+
+                for item in fhyx:
+                    if item.get("ASSIGN_PROGRESS") == "实施方案":
+                        profile = item.get("IMPL_PLAN_PROFILE", "")
+                        if "派" in profile and "元" in profile:
+                            try:
+                                match = re.search(r'10派([\d.]+)元', profile)
+                                if match:
+                                    div_per_10 = float(match.group(1))
+                                    notice_date = item.get("NOTICE_DATE", "")
+                                    year = notice_date[:4] if notice_date else ""
+                                    if year:
+                                        # 检查是否已存在该年份
+                                        if not any(h["year"] == int(year) for h in history):
+                                            history.append({
+                                                "year": int(year),
+                                                "cash_dividend": round(div_per_10 / 10, 2)
+                                            })
+                            except:
+                                pass
+
+                # 按年份降序排序，只保留最近N年
+                history.sort(key=lambda x: x["year"], reverse=True)
+                history = history[:years]
+
+                # 补充缺失年份
+                existing_years = [h["year"] for h in history]
+                latest_div = history[0]["cash_dividend"] if history else 0
+                current_year = 2024  # 使用固定年份避免未来数据问题
+                for y in range(current_year, current_year - years, -1):
+                    if y not in existing_years:
+                        history.append({"year": y, "cash_dividend": 0})
+
+                history.sort(key=lambda x: x["year"], reverse=True)
+
+        except Exception as e:
+            print(f"获取{stock_code}分红历史失败: {e}")
+
+        return history[:years]
 
     def _get_stock_metrics(self, stock_code: str) -> Dict:
         """获取股票关键指标"""
@@ -1033,7 +1071,7 @@ class StockDataService:
         return results
 
     def get_money_flow(self, stock_code: str) -> Dict:
-        """获取个股资金流向 - 使用akshare"""
+        """获取个股资金流向 - 使用akshare，单位：万元"""
         try:
             import akshare as ak
 
@@ -1047,36 +1085,61 @@ class StockDataService:
                 # 获取最新一天的数据
                 latest = df.iloc[0]
 
-                # 主力净流入
-                main_net = latest['主力净流入-净额'] / 100000000  # 转换为亿
+                # 原始数据单位是元，转换为万元
+                WAN = 10000  # 1万 = 10000元
+
+                # 主力净流入（万元）
+                main_net = latest['主力净流入-净额'] / WAN
                 main_pct = latest['主力净流入-净占比']
 
-                # 超大单净流入
-                super_net = latest['超大单净流入-净额'] / 100000000
+                # 超大单净流入（万元）
+                super_net = latest['超大单净流入-净额'] / WAN
                 super_pct = latest['超大单净流入-净占比']
 
-                # 大单净流入
-                big_net = latest['大单净流入-净额'] / 100000000
+                # 大单净流入（万元）
+                big_net = latest['大单净流入-净额'] / WAN
                 big_pct = latest['大单净流入-净占比']
 
-                # 中单净流入
-                mid_net = latest['中单净流入-净额'] / 100000000
+                # 中单净流入（万元）
+                mid_net = latest['中单净流入-净额'] / WAN
                 mid_pct = latest['中单净流入-净占比']
 
-                # 小单净流入
-                small_net = latest['小单净流入-净额'] / 100000000
+                # 小单净流入（万元）
+                small_net = latest['小单净流入-净额'] / WAN
                 small_pct = latest['小单净流入-净占比']
 
                 # 散户 = 中单 + 小单
                 retail_net = mid_net + small_net
 
-                # 计算流入流出（根据净流入推算）
-                # 假设总成交额为净流入绝对值的10倍
-                total_estimate = abs(main_net) * 10 + 1  # 加1避免除零
+                # 计算流入流出：净流入 = 流入 - 流出
+                # 假设流入流出比例基于净流入占比
+                # 如果净流入为正：流入 > 流出，反之亦然
+                def calc_inflow_outflow(net_flow, pct):
+                    """根据净流入计算流入流出"""
+                    if net_flow == 0:
+                        return abs(net_flow), abs(net_flow)
+                    # 基准流量：净流入占总额的比例推算总额
+                    # 假设净流入占比为pct，则总额 = 净流入 / (pct/100)
+                    if pct != 0:
+                        total = abs(net_flow) / (abs(pct) / 100) if abs(pct) > 0.1 else abs(net_flow) * 10
+                    else:
+                        total = abs(net_flow) * 10
+                    total = max(total, abs(net_flow) * 2)  # 确保总额至少是净流入的2倍
+
+                    if net_flow > 0:
+                        inflow = (total + net_flow) / 2
+                        outflow = (total - net_flow) / 2
+                    else:
+                        inflow = (total - abs(net_flow)) / 2
+                        outflow = (total + abs(net_flow)) / 2
+                    return max(inflow, 0), max(outflow, 0)
 
                 # 主力 = 超大单 + 大单
-                main_inflow = (total_estimate + main_net) / 2 if main_net > 0 else (total_estimate - abs(main_net)) / 2
-                main_outflow = (total_estimate - main_net) / 2 if main_net > 0 else (total_estimate + abs(main_net)) / 2
+                main_inflow, main_outflow = calc_inflow_outflow(main_net, main_pct)
+                super_inflow, super_outflow = calc_inflow_outflow(super_net, super_pct)
+                big_inflow, big_outflow = calc_inflow_outflow(big_net, big_pct)
+                mid_inflow, mid_outflow = calc_inflow_outflow(mid_net, mid_pct)
+                small_inflow, small_outflow = calc_inflow_outflow(small_net, small_pct)
 
                 return {
                     "date": str(latest['日期']),
@@ -1085,19 +1148,22 @@ class StockDataService:
                     "main_net": round(main_net, 2),
                     "main_pct": round(main_pct, 2),
                     "retail_net": round(retail_net, 2),
-                    "super_inflow": round(abs(super_net) * 0.6 if super_net > 0 else abs(super_net) * 0.4, 2),
-                    "super_outflow": round(abs(super_net) * 0.4 if super_net > 0 else abs(super_net) * 0.6, 2),
+                    "super_inflow": round(super_inflow, 2),
+                    "super_outflow": round(super_outflow, 2),
                     "super_net": round(super_net, 2),
                     "super_pct": round(super_pct, 2),
-                    "big_inflow": round(abs(big_net) * 0.6 if big_net > 0 else abs(big_net) * 0.4, 2),
-                    "big_outflow": round(abs(big_net) * 0.4 if big_net > 0 else abs(big_net) * 0.6, 2),
+                    "big_inflow": round(big_inflow, 2),
+                    "big_outflow": round(big_outflow, 2),
                     "big_net": round(big_net, 2),
-                    "mid_inflow": round(abs(mid_net) * 0.6 if mid_net > 0 else abs(mid_net) * 0.4, 2),
-                    "mid_outflow": round(abs(mid_net) * 0.4 if mid_net > 0 else abs(mid_net) * 0.6, 2),
+                    "big_pct": round(big_pct, 2),
+                    "mid_inflow": round(mid_inflow, 2),
+                    "mid_outflow": round(mid_outflow, 2),
                     "mid_net": round(mid_net, 2),
-                    "small_inflow": round(abs(small_net) * 0.6 if small_net > 0 else abs(small_net) * 0.4, 2),
-                    "small_outflow": round(abs(small_net) * 0.4 if small_net > 0 else abs(small_net) * 0.6, 2),
+                    "mid_pct": round(mid_pct, 2),
+                    "small_inflow": round(small_inflow, 2),
+                    "small_outflow": round(small_outflow, 2),
                     "small_net": round(small_net, 2),
+                    "small_pct": round(small_pct, 2),
                 }
 
             # 如果API失败，返回模拟数据

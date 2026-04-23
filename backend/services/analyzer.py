@@ -203,18 +203,33 @@ class FinancialAnalyzer:
         global dividend_db
         current_price = trade_data.get("f43", 0)
 
-        # 优先从API获取股息数据
-        cash_dividend = stock_service._get_dividend_from_api(stock_code)
-        continuous_years = 0
+        # 优先从API获取分红历史
+        dividend_history = stock_service.get_dividend_history(stock_code, years=5)
 
-        # 如果API没有数据，使用静态数据库
-        if cash_dividend == 0:
+        # 获取最近一次分红金额
+        cash_dividend = 0
+        if dividend_history and dividend_history[0].get("cash_dividend", 0) > 0:
+            cash_dividend = dividend_history[0]["cash_dividend"]
+        else:
+            # 如果API没有数据，使用静态数据库
             stock_info = dividend_db.get(stock_code, {"cash": 0, "years": 0})
             cash_dividend = stock_info["cash"]
-            continuous_years = stock_info["years"]
-        else:
-            # API有数据时，估算连续分红年数（简化处理）
-            continuous_years = 5  # 假设有5年分红历史
+            # 生成模拟历史
+            dividend_history = [
+                {"year": 2024, "cash_dividend": cash_dividend},
+                {"year": 2023, "cash_dividend": cash_dividend * 0.95},
+                {"year": 2022, "cash_dividend": cash_dividend * 0.90},
+                {"year": 2021, "cash_dividend": cash_dividend * 0.85},
+                {"year": 2020, "cash_dividend": cash_dividend * 0.80},
+            ]
+
+        # 计算连续分红年数
+        continuous_years = 0
+        for item in dividend_history:
+            if item.get("cash_dividend", 0) > 0:
+                continuous_years += 1
+            else:
+                break
 
         # 计算股息率
         dividend_yield = (cash_dividend / current_price * 100) if current_price and current_price > 0 else 0
@@ -223,13 +238,7 @@ class FinancialAnalyzer:
             "dividend_yield": round(dividend_yield, 2),
             "latest_cash_dividend": cash_dividend,
             "continuous_years": continuous_years,
-            "dividend_history": [
-                {"year": 2024, "cash_dividend": cash_dividend},
-                {"year": 2023, "cash_dividend": cash_dividend * 0.95},
-                {"year": 2022, "cash_dividend": cash_dividend * 0.90},
-                {"year": 2021, "cash_dividend": cash_dividend * 0.85},
-                {"year": 2020, "cash_dividend": cash_dividend * 0.80},
-            ],
+            "dividend_history": dividend_history,
             "yield_status": self._get_dividend_status(dividend_yield, continuous_years)
         }
 
