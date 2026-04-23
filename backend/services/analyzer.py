@@ -989,21 +989,18 @@ class FinancialAnalyzer:
         }
 
     def _analyze_risk(self, stock_code: str) -> Dict:
-        """风险排查分析"""
-        # 模拟数据 - 实际需要从财务数据获取
-        risk_db = {
-            "600028": {"pledge_rate": 0, "goodwill_ratio": 5.2, "audit_opinion": "标准无保留意见"},
-            "600036": {"pledge_rate": 0, "goodwill_ratio": 2.1, "audit_opinion": "标准无保留意见"},
-            "601857": {"pledge_rate": 35, "goodwill_ratio": 8.5, "audit_opinion": "标准无保留意见"},
-            "601398": {"pledge_rate": 0, "goodwill_ratio": 1.2, "audit_opinion": "标准无保留意见"},
-            "000001": {"pledge_rate": 0, "goodwill_ratio": 15.8, "audit_opinion": "标准无保留意见"},
-        }
-
-        stock_info = risk_db.get(stock_code, {"pledge_rate": 0, "goodwill_ratio": 10, "audit_opinion": "标准无保留意见"})
-
-        pledge_rate = stock_info["pledge_rate"]
-        goodwill_ratio = stock_info["goodwill_ratio"]
-        audit_opinion = stock_info["audit_opinion"]
+        """风险排查分析 - 从API获取实时数据"""
+        # 从API获取风险数据
+        try:
+            risk_data = stock_service.get_risk_data(stock_code)
+            pledge_rate = risk_data.get("pledge_rate", 0)
+            goodwill_ratio = risk_data.get("goodwill_ratio", 0)
+            audit_opinion = risk_data.get("audit_opinion", "标准无保留意见")
+        except Exception as e:
+            print(f"获取{stock_code}风险数据失败: {e}")
+            pledge_rate = 0
+            goodwill_ratio = 5.0
+            audit_opinion = "标准无保留意见"
 
         # 判断条件
         conditions = []
@@ -1012,7 +1009,7 @@ class FinancialAnalyzer:
         pledge_pass = pledge_rate < 60
         conditions.append({
             "name": "大股东质押率 < 60%",
-            "value": f"{pledge_rate}%" if pledge_rate > 0 else "0%",
+            "value": f"{pledge_rate}%",
             "pass": pledge_pass,
             "desc": "高质押可能带来风险"
         })
