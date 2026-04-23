@@ -6,66 +6,137 @@
     <title>股票深度分析系统</title>
     <!-- 使用Vue 3.2 -->
     <script src="https://cdn.jsdelivr.net/npm/vue@3.2.47/dist/vue.global.prod.min.js"></script>
-    <!-- 使用系统字体，移除Google Fonts阻塞 -->
+    <!-- 使用系统字体 -->
     <link rel="stylesheet" href="styles.css">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif; margin: 0; padding: 0; }
+        .site-header {
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 24px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            border-bottom: 1px solid #2a2a4a;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+        .site-header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            letter-spacing: 0.5px;
+        }
+        .site-header p {
+            font-size: 0.85rem;
+            margin: 8px 0 0 0;
+            color: #8b8ba7;
+            font-weight: 400;
+        }
+        .header-icon {
+            font-size: 1.8rem;
+        }
     </style>
 </head>
 <body>
-    <div id="app" class="container">
-        <!-- 头部 -->
-        <header class="header">
-            <h1>股票深度分析系统</h1>
+    <!-- 顶部Header -->
+    <header class="site-header">
+        <div>
+            <h1><span class="header-icon">📈</span> 股票深度分析系统</h1>
             <p>从财务指标、估值角度全面分析股票投资价值</p>
-        </header>
+        </div>
+    </header>
 
-        <!-- 搜索框 -->
-        <div class="search-box">
-            <form class="search-form" @submit.prevent="analyze">
-                <div class="search-input-wrapper" style="position: relative; flex: 1;">
-                    <input
-                        type="text"
-                        class="search-input"
-                        v-model="stockCode"
-                        @input="onSearchInput"
-                        @focus="showSearchResults = true"
-                        @blur="hideSearchResults"
-                        placeholder="请输入股票代码或名称（如：600028 或 工商银行）"
-                        maxlength="10"
-                    >
-                    <!-- 搜索结果下拉列表 -->
-                    <div v-if="showSearchResults && searchResults.length > 0" class="search-dropdown">
-                        <div v-for="item in searchResults"
-                             :key="item.code"
-                             class="search-dropdown-item"
-                             @mousedown="selectStock(item)">
-                            <span class="stock-name">{{ item.name }}</span>
-                            <span class="stock-code">{{ item.code }}</span>
+    <div id="app" class="container">
+        <!-- 每日财经早报 - 整行 -->
+        <div v-if="morningReport" class="morning-report-card" style="margin-bottom: 12px;">
+            <div class="report-header">
+                <div class="report-title">
+                    <span class="report-icon">📰</span>
+                    <span>每日财经早报</span>
+                    <span class="report-date">{{ morningReport.date }} {{ morningReport.weekday }}</span>
+                </div>
+                <span class="report-time">{{ morningReport.generated_at }}</span>
+            </div>
+
+            <div class="report-content">
+                <!-- 市场概况 -->
+                <div class="report-section">
+                    <div class="section-label">📊 市场概况</div>
+                    <div class="market-indices">
+                        <span v-for="idx in morningReport.market_summary.indices" :key="idx.name"
+                              class="index-item" :class="idx.direction">
+                            <span class="index-name">{{ idx.name }}</span>
+                            <span class="index-price">{{ idx.price }}</span>
+                            <span class="index-change">{{ idx.change_pct >= 0 ? '+' : '' }}{{ idx.change_pct }}%</span>
+                        </span>
+                    </div>
+                    <div class="market-comment">{{ morningReport.market_summary.comment }}</div>
+                </div>
+
+                <!-- 知识小贴士 -->
+                <div class="report-section tip-section">
+                    <div class="section-label">💡 今日知识</div>
+                    <div class="knowledge-tip">
+                        <div class="tip-title">{{ morningReport.knowledge_tip.title }}</div>
+                        <div class="tip-content">{{ morningReport.knowledge_tip.content }}</div>
+                        <span class="tip-tag">{{ morningReport.knowledge_tip.category }}</span>
+                    </div>
+                </div>
+
+                <!-- 每日术语 -->
+                <div class="report-section term-section">
+                    <div class="section-label">📖 每日术语</div>
+                    <div class="daily-term">
+                        <span class="term-name">{{ morningReport.daily_term.term }}</span>
+                        <span class="term-desc">{{ morningReport.daily_term.desc }}</span>
+                    </div>
+                </div>
+
+                <!-- 自选股动态 -->
+                <div v-if="morningReport.watchlist_alerts && morningReport.watchlist_alerts.length > 0" class="report-section">
+                    <div class="section-label">🔔 自选股提醒</div>
+                    <div class="alerts-list">
+                        <div v-for="alert in morningReport.watchlist_alerts" :key="alert.code"
+                             class="alert-item" :class="alert.level">
+                            <span class="alert-name">{{ alert.name }}</span>
+                            <span class="alert-type">{{ alert.type }}</span>
+                            <span class="alert-msg">{{ alert.message }}</span>
                         </div>
                     </div>
                 </div>
-                <button type="submit" class="search-btn" :disabled="loading">
-                    {{ loading ? '分析中...' : '开始分析' }}
-                </button>
-            </form>
+            </div>
         </div>
 
-        <!-- 加载状态 -->
-        <div v-if="loading" class="loading">
-            <div class="spinner"></div>
-            <p>正在获取数据并分析...</p>
+        <!-- 大盘走势概览 - 整行 -->
+        <div class="metric-card" style="margin-bottom: 12px;">
+            <div class="metric-header">
+                <span class="metric-name">📈 大盘走势概览<span class="help-icon" data-tip="大盘走势反映整体市场情绪：&#10;• 大盘上涨时，个股更容易涨&#10;• 大盘下跌时，个股很难独善其身&#10;• 买入前先看大盘，顺势而为">?</span></span>
+            </div>
+            <div style="display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap;">
+                <template v-for="idx in marketIndices" :key="idx.code">
+                    <div style="flex: 1; min-width: 140px; display: flex; flex-direction: column; align-items: center; padding: 12px 16px; border-radius: 8px;"
+                         :style="{background: idx.direction === 'up' ? '#fef2f2' : '#f0fdf4'}">
+                        <span style="font-size: 0.8rem; color: var(--text-light);">{{ idx.name }}</span>
+                        <span style="font-size: 1.1rem; font-weight: 600; margin: 4px 0;">{{ idx.price ? idx.price.toFixed(2) : '--' }}</span>
+                        <span :style="{color: idx.direction === 'up' ? '#ef4444' : '#22c55e', fontSize: '0.85rem', fontWeight: '500'}">
+                            {{ idx.change >= 0 ? '+' : '' }}{{ idx.change ? idx.change.toFixed(2) : '0' }}%
+                        </span>
+                    </div>
+                </template>
+                <div v-if="marketIndices.length === 0" style="flex: 1; text-align: center; color: var(--text-light); padding: 20px;">加载中...</div>
+            </div>
         </div>
 
-        <!-- 错误提示 -->
-        <div v-if="error" class="error-message">
-            {{ error }}
-        </div>
+        <!-- 主内容区：左右分栏 -->
+        <div style="display: flex; flex-wrap: nowrap; gap: 12px; width: 100%; align-items: flex-start;">
 
-        <!-- 第一行：新闻+右侧内容 -->
-        <div style="display: flex; flex-wrap: nowrap; gap: 12px; margin-bottom: 16px; width: 100%;">
-            <!-- 左侧新闻卡片（2/3） -->
-            <div class="metric-card" style="flex: 2; min-width: 0;">
+            <!-- 左侧：今日热点财经 -->
+            <div class="metric-card" style="flex: 2; min-width: 0; display: flex; flex-direction: column; min-height: 700px;">
                 <div class="metric-header">
                     <span class="metric-name">今日热点财经</span>
                     <span class="metric-status" style="background: #dbeafe; color: #1d4ed8;">科技·AI·能源</span>
@@ -73,7 +144,7 @@
                 <div v-if="newsLoading" class="loading" style="padding: 20px;">
                     <div class="spinner" style="width: 24px; height: 24px;"></div>
                 </div>
-                <div v-else-if="news.length > 0" class="news-list" style="max-height: 420px; overflow-y: auto;">
+                <div v-else-if="news.length > 0" class="news-list" style="flex: 1; overflow-y: auto; margin: -12px -16px; padding: 12px 16px; min-height: 600px;">
                     <div v-for="item in news" :key="item.url" style="padding: 12px; border-bottom: 1px solid var(--border-color);">
                         <!-- 新闻标题 -->
                         <div style="font-size: 0.85rem; line-height: 1.4; margin-bottom: 8px; color: var(--text-primary);">
@@ -95,7 +166,7 @@
                                     💡 {{ fund.suggestion }}
                                 </div>
                             </div>
-                            <!-- 统一ETF推荐（去重） -->
+                            <!-- ETF推荐 -->
                             <div v-if="item.unique_etfs && item.unique_etfs.length > 0" style="margin-top: 8px; padding: 8px; background: #ecfdf5; border-radius: 4px;">
                                 <div style="font-size: 0.65rem; color: #059669; font-weight: 500; margin-bottom: 4px;">🎯 推荐ETF</div>
                                 <div v-for="etf in item.unique_etfs" :key="etf.code" style="font-size: 0.7rem; color: var(--text-primary); padding: 4px 6px; background: white; border-radius: 4px; margin-bottom: 4px;">
@@ -104,7 +175,7 @@
                                     <div style="font-size: 0.65rem; color: #059669; margin-top: 2px;">{{ etf.reason }}</div>
                                 </div>
                             </div>
-                            <!-- 动态股票推荐（仅利好新闻显示） -->
+                            <!-- 股票推荐 -->
                             <div v-if="isPositiveNews(item) && item.recommended_stocks && item.recommended_stocks.length > 0" style="margin-top: 8px; padding: 8px; background: #eff6ff; border-radius: 4px;">
                                 <div style="font-size: 0.65rem; color: #1d4ed8; font-weight: 500; margin-bottom: 4px;">📈 相关股票</div>
                                 <div v-for="stock in item.recommended_stocks" :key="stock.code"
@@ -112,7 +183,6 @@
                                      style="font-size: 0.7rem; color: var(--text-primary); padding: 4px 6px; background: white; border-radius: 4px; margin-bottom: 4px; cursor: pointer;">
                                     <span style="font-weight: 600;">{{ stock.name }}</span>
                                     <span style="color: var(--text-light); margin-left: 4px;">{{ stock.code }}</span>
-                                    <span v-if="stock.reason" style="font-size: 0.6rem; color: #6b7280; margin-left: 4px;">{{ stock.reason }}</span>
                                 </div>
                             </div>
                         </div>
@@ -128,75 +198,213 @@
                 <div v-else style="text-align: center; color: var(--text-light); padding: 20px;">暂无热点新闻</div>
             </div>
 
-            <!-- 右侧列：自选股+股票推荐 -->
-            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px;">
-                <!-- 自选股卡片 -->
-                <div class="metric-card" style="flex: 1; display: flex; flex-direction: column;">
+            <!-- 右侧：工具区域 -->
+            <div style="flex: 1; min-width: 260px; max-width: 320px; display: flex; flex-direction: column; gap: 10px;">
+
+                <!-- 股票搜索 -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-name">🔍 股票搜索</span>
+                    </div>
+                    <div style="position: relative; margin-top: 8px;">
+                        <input
+                            type="text"
+                            class="search-input"
+                            v-model="stockCode"
+                            @input="onSearchInput"
+                            @focus="showSearchResults = true"
+                            @blur="hideSearchResults"
+                            placeholder="输入代码或名称（如：600028）"
+                            maxlength="10"
+                            style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.9rem; background: var(--bg-primary); color: var(--text-primary);"
+                        >
+                        <!-- 搜索结果下拉 -->
+                        <div v-if="showSearchResults && searchResults.length > 0" class="search-dropdown" style="position: absolute; top: 100%; left: 0; right: 0; z-index: 100; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; margin-top: 4px; max-height: 200px; overflow-y: auto;">
+                            <div v-for="item in searchResults" :key="item.code"
+                                 class="search-dropdown-item"
+                                 @mousedown="selectStock(item)"
+                                 style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border-color);"
+                                 onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
+                                <span style="font-weight: 500;">{{ item.name }}</span>
+                                <span style="color: var(--text-light); margin-left: 8px; font-size: 0.85rem;">{{ item.code }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button @click="analyze" :disabled="loading" style="width: 100%; margin-top: 8px; padding: 10px; background: var(--primary-color); color: white; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 500; cursor: pointer;">
+                        {{ loading ? '分析中...' : '开始分析' }}
+                    </button>
+                    <div v-if="error" style="margin-top: 8px; font-size: 0.8rem; color: #ef4444;">{{ error }}</div>
+                </div>
+
+                <!-- 我的自选股 -->
+                <div class="metric-card">
                     <div class="metric-header">
                         <span class="metric-name">我的自选股</span>
                         <span class="metric-status" style="background: #d1fae5; color: #065f46; cursor: pointer;" @click="showAddWatchlist = true">+ 添加</span>
                     </div>
-
-                <!-- 添加自选股弹窗 -->
-                <div v-if="showAddWatchlist" style="display: flex; gap: 8px; margin-bottom: 12px;">
-                    <input type="text" v-model="newWatchlistCode" placeholder="股票代码" maxlength="6" style="flex: 1; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem; background: var(--bg-primary); color: var(--text-primary);">
-                    <button @click="addToWatchlist" style="background: var(--primary-color); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">添加</button>
-                    <button @click="showAddWatchlist = false; newWatchlistCode = ''" style="background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">取消</button>
-                </div>
-
-                <div v-if="watchlistLoading" class="loading" style="padding: 20px;">
-                    <div class="spinner" style="width: 24px; height: 24px;"></div>
-                </div>
-                <div v-else-if="watchlist.length > 0" style="flex: 1; min-height: 0;">
-                    <div style="height: 100%; overflow-y: auto; padding-right: 4px;">
+                    <!-- 添加自选股 -->
+                    <div v-if="showAddWatchlist" style="display: flex; gap: 6px; margin-bottom: 8px; margin-top: 8px;">
+                        <input type="text" v-model="newWatchlistCode" placeholder="股票代码" maxlength="6" style="flex: 1; padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem; background: var(--bg-primary); color: var(--text-primary);">
+                        <button @click="addToWatchlist" style="background: var(--primary-color); color: white; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">添加</button>
+                        <button @click="showAddWatchlist = false; newWatchlistCode = ''" style="background: var(--bg-tertiary); border: 1px solid var(--border-color); padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem;">取消</button>
+                    </div>
+                    <div v-if="watchlistLoading" style="text-align: center; padding: 16px; color: var(--text-light);">加载中...</div>
+                    <div v-else-if="watchlist.length > 0" style="max-height: 200px; overflow-y: auto; margin-top: 8px;">
                         <div v-for="item in watchlist" :key="item.stock_code"
                              @click="analyzeStock(item.stock_code)"
-                             style="padding: 10px; background: var(--bg-secondary); border-radius: 8px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;"
+                             style="padding: 8px; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 6px; cursor: pointer;"
                              onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='var(--bg-secondary)'">
-                            <!-- 主体：左侧名称代码，中间价格，右侧删除 -->
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 0.9rem; font-weight: 500;">{{ item.stock_name || item.stock_code }}</span>
-                                    <span v-if="item.stock_name" style="font-size: 0.75rem; color: var(--text-light);">{{ item.stock_code }}</span>
+                                <div>
+                                    <span style="font-weight: 500; font-size: 0.85rem;">{{ item.stock_name || item.stock_code }}</span>
+                                    <span v-if="item.stock_name" style="font-size: 0.7rem; color: var(--text-light); margin-left: 4px;">{{ item.stock_code }}</span>
                                 </div>
-                                <div style="display: flex; align-items: center; gap: 12px;">
-                                    <div style="display: flex; flex-direction: column; align-items: flex-end;">
-                                        <span v-if="item.current_price" style="font-size: 0.9rem; font-weight: 500;">¥{{ item.current_price }}</span>
-                                        <span v-else style="font-size: 0.9rem;">--</span>
-                                        <span v-if="item.price_change" :style="{color: item.price_change >= 0 ? '#ef4444' : '#22c55e', fontSize: '0.75rem'}">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 0.85rem;">¥{{ item.current_price || '--' }}</div>
+                                        <div :style="{color: item.price_change >= 0 ? '#ef4444' : '#22c55e', fontSize: '0.7rem'}">
                                             {{ item.price_change >= 0 ? '+' : '' }}{{ item.price_change }}%
-                                        </span>
+                                        </div>
                                     </div>
-                                    <button @click.stop="removeFromWatchlist(item.stock_code)" title="删除" style="width: 20px; height: 20px; border-radius: 50%; background: #ef4444; color: white; border: none; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; line-height: 1;">×</button>
+                                    <button @click.stop="removeFromWatchlist(item.stock_code)" title="删除" style="width: 18px; height: 18px; border-radius: 50%; background: #ef4444; color: white; border: none; font-size: 12px; cursor: pointer; line-height: 1;">×</button>
                                 </div>
                             </div>
-                            <!-- 股息率 -->
-                            <div v-if="item.dividend_yield" style="display: flex; justify-content: space-between; padding-top: 6px; border-top: 1px solid var(--border-color); font-size: 0.8rem; margin-top: 6px;">
-                                <span style="color: var(--text-light);">股息率: <span style="color: #4ade80; font-weight: 500;">{{ item.dividend_yield }}%</span></span>
-                                <span style="color: var(--text-light);">分红: <span style="color: var(--text-primary);">{{ item.cash_dividend }}元</span></span>
+                        </div>
+                    </div>
+                    <div v-else style="text-align: center; color: var(--text-light); padding: 12px; font-size: 0.85rem;">点击+添加自选股</div>
+                </div>
+
+                <!-- 价格预警 -->
+                <div v-if="alerts.length > 0" class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-name">价格预警</span>
+                        <span class="metric-status" :class="triggeredAlerts.length > 0 ? 'green' : 'gray'">
+                            {{ triggeredAlerts.length > 0 ? triggeredAlerts.length + '已触发' : alerts.length + '个' }}
+                        </span>
+                    </div>
+                    <div style="max-height: 120px; overflow-y: auto; margin-top: 8px;">
+                        <div v-for="alert in alerts" :key="alert.id" :class="['alert-row', alert.status]">
+                            <div class="alert-info">
+                                <span class="alert-stock">{{ alert.stock_name }}</span>
+                                <span class="alert-condition">
+                                    {{ alert.alert_type === 'above' ? '站上' : '跌破' }} {{ alert.target_price }}元
+                                </span>
+                            </div>
+                            <div class="alert-status">
+                                <span v-if="alert.status === 'triggered'" class="triggered-badge">已触发</span>
+                                <button @click="deleteAlert(alert.id)" class="delete-alert-btn">×</button>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div v-else style="text-align: center; color: var(--text-light); padding: 20px;">点击+添加自选股</div>
-                </div>
 
-                <!-- 股票推荐 -->
+                <!-- 模拟组合 -->
+                <a href="portfolio.html" style="text-decoration: none;">
+                    <div class="metric-card" style="cursor: pointer;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background=''">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 1.5rem;">📊</span>
+                            <div>
+                                <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9rem;">模拟组合</div>
+                                <div style="font-size: 0.75rem; color: var(--text-light);">用虚拟资金练炒股 →</div>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+
+                <!-- 今日股票推荐 -->
                 <div v-if="recommendations.length > 0" class="metric-card">
                     <div class="metric-header">
-                        <span class="metric-name">今日股票推荐</span>
+                        <span class="metric-name">今日推荐</span>
                         <span class="metric-status" style="background: #fef3c7; color: #92400e;">{{ recommendations.length }}只</span>
                     </div>
-                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
                         <span v-for="item in recommendations" :key="item.code"
                               @click="analyzeStock(item.code)"
-                              style="display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; background: var(--bg-tertiary); border-radius: 16px; font-size: 0.75rem; color: var(--text-primary); cursor: pointer; transition: all 0.2s;"
-                              onmouseover="this.style.background='#e0f2fe';this.style.color='#0369a1'" onmouseout="this.style.background='var(--bg-tertiary)';this.style.color='var(--text-primary)'">
-                            <span style="font-weight: 600;">{{ item.name }}</span>
+                              style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: var(--bg-tertiary); border-radius: 14px; font-size: 0.75rem; color: var(--text-primary); cursor: pointer;"
+                              onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='var(--bg-tertiary)'">
+                            <span style="font-weight: 500;">{{ item.name }}</span>
                             <span style="color: var(--text-light);">{{ item.code }}</span>
                         </span>
                     </div>
                 </div>
+
+                <!-- 投资策略筛选 -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-name">策略筛选<span class="help-icon" data-tip="根据预设策略从自选股中筛选符合条件的股票">?</span></span>
+                        <span v-if="screenedStocks.length > 0" class="metric-status" style="background: #d1fae5; color: #065f46;">{{ screenedStocks.length }}只</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+                        <button v-for="s in strategies" :key="s.id"
+                                @click="screenStocks(s.id)"
+                                :class="['strategy-btn', currentStrategy === s.id ? 'active' : '']"
+                                :disabled="screenLoading"
+                                style="padding: 6px 10px; font-size: 0.75rem;">
+                            {{ s.name }}
+                        </button>
+                    </div>
+                    <div v-if="screenLoading" style="text-align: center; padding: 12px; color: var(--text-light);">筛选中...</div>
+                    <div v-else-if="screenedStocks.length > 0" style="margin-top: 8px; max-height: 150px; overflow-y: auto;">
+                        <div v-for="stock in screenedStocks" :key="stock.code"
+                             @click="analyzeStock(stock.code)"
+                             style="padding: 8px; background: var(--bg-secondary); border-radius: 6px; margin-bottom: 6px; cursor: pointer;"
+                             onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='var(--bg-secondary)'">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <span style="font-weight: 500; font-size: 0.85rem;">{{ stock.name }}</span>
+                                    <span style="font-size: 0.7rem; color: var(--text-light); margin-left: 4px;">{{ stock.code }}</span>
+                                </div>
+                                <span style="background: #10b981; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.7rem;">{{ stock.match_score }}分</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 预警设置弹窗 -->
+        <div v-if="showAlertModal" class="modal-overlay" @click.self="closeModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <span>设置价格预警</span>
+                    <button @click="closeModal" class="modal-close">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-stock-info">
+                        <span class="stock-name">{{ alertStock.stock_name }}</span>
+                        <span class="stock-code">{{ alertStock.stock_code }}</span>
+                        <span v-if="alertStock.current_price" class="current-price">
+                            当前价: ¥{{ alertStock.current_price }}
+                        </span>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-light); background: #f0f9ff; padding: 10px; border-radius: 8px; margin-bottom: 16px; line-height: 1.6;">
+                        💡 可以同时设置两个预警，不用都填。比如只想知道什么时候可以买，就只填跌破价。
+                    </div>
+                    <div class="form-group">
+                        <label>📈 站上价格（涨到这里提醒卖出）</label>
+                        <input type="number" v-model="alertAbovePrice" step="0.01" :placeholder="'建议高于当前价 ' + (alertStock.current_price || '--')">
+                    </div>
+                    <div class="form-group">
+                        <label>📉 跌破价格（跌到这里提醒买入）</label>
+                        <input type="number" v-model="alertBelowPrice" step="0.01" :placeholder="'建议低于当前价 ' + (alertStock.current_price || '--')">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button @click="closeModal" class="btn-cancel">取消</button>
+                    <button @click="createAlerts" class="btn-confirm" :disabled="!alertAbovePrice && !alertBelowPrice">确定</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 触发预警通知 -->
+        <div v-if="triggeredAlerts.length > 0" class="alert-notification">
+            <div class="notification-header">
+                <span>🔔 预警触发提醒</span>
+                <button @click="clearTriggeredAlerts" class="clear-btn">清除</button>
+            </div>
+            <div v-for="alert in triggeredAlerts" :key="alert.id" class="notification-item">
+                {{ alert.message }}
             </div>
         </div>
 

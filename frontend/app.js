@@ -33,6 +33,32 @@ createApp({
         const showSearchResults = ref(false);
         let searchTimeout = null;
 
+        // 早报相关
+        const morningReport = ref(null);
+
+        // 预警相关
+        const alerts = ref([]);
+        const triggeredAlerts = ref([]);
+        const showAlertModal = ref(false);
+        const alertStock = ref({});
+        const alertAbovePrice = ref('');  // 站上价格
+        const alertBelowPrice = ref('');  // 跌破价格
+
+        // 策略筛选相关
+        const strategies = ref([
+            { id: 'high_dividend', name: '高股息策略', description: '稳健型投资者' },
+            { id: 'growth', name: '成长股策略', description: '进取型投资者' },
+            { id: 'value', name: '价值投资策略', description: '价值投资者' },
+            { id: 'low_risk', name: '低风险策略', description: '保守型投资者' }
+        ]);
+        const currentStrategy = ref('');
+        const strategyConditions = ref([]);
+        const screenedStocks = ref([]);
+        const screenLoading = ref(false);
+
+        // 大盘指数相关
+        const marketIndices = ref([]);
+
         // 搜索股票
         const onSearchInput = async () => {
             const query = stockCode.value.trim();
@@ -330,10 +356,170 @@ createApp({
             return impacts.some(impact => impact.sentiment === 'positive');
         };
 
+        // 加载每日早报
+        const loadMorningReport = async () => {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/api/report/morning`, {}, 10000);
+                if (!response.ok) throw new Error('获取早报失败');
+                morningReport.value = await response.json();
+            } catch (err) {
+                console.error('加载早报失败:', err);
+                morningReport.value = null;
+            }
+        };
+
+        // 加载预警列表
+        const loadAlerts = async () => {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/api/alerts`, {}, 10000);
+                if (!response.ok) throw new Error('获取预警失败');
+                const data = await response.json();
+                alerts.value = data.alerts || [];
+                triggeredAlerts.value = data.triggered || [];
+            } catch (err) {
+                console.error('加载预警失败:', err);
+            }
+        };
+
+        // 打开预警设置弹窗
+        const openAlertModal = (stock) => {
+            alertStock.value = stock;
+            alertAbovePrice.value = '';
+            alertBelowPrice.value = '';
+            showAlertModal.value = true;
+        };
+
+        // 关闭预警设置弹窗
+        const closeModal = () => {
+            showAlertModal.value = false;
+            alertStock.value = {};
+            alertAbovePrice.value = '';
+            alertBelowPrice.value = '';
+        };
+
+        // 创建预警（支持同时设置两个）
+        const createAlerts = async () => {
+            let successCount = 0;
+            let messages = [];
+
+            // 创建站上预警
+            if (alertAbovePrice.value && parseFloat(alertAbovePrice.value) > 0) {
+                try {
+                    const response = await fetch(`${API_BASE}/api/alerts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            stock_code: alertStock.value.stock_code,
+                            stock_name: alertStock.value.stock_name,
+                            target_price: parseFloat(alertAbovePrice.value),
+                            alert_type: 'above'
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) successCount++;
+                } catch (err) {
+                    messages.push('站上预警设置失败');
+                }
+            }
+
+            // 创建跌破预警
+            if (alertBelowPrice.value && parseFloat(alertBelowPrice.value) > 0) {
+                try {
+                    const response = await fetch(`${API_BASE}/api/alerts`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            stock_code: alertStock.value.stock_code,
+                            stock_name: alertStock.value.stock_name,
+                            target_price: parseFloat(alertBelowPrice.value),
+                            alert_type: 'below'
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) successCount++;
+                } catch (err) {
+                    messages.push('跌破预警设置失败');
+                }
+            }
+
+            if (successCount > 0) {
+                alert(`已成功设置 ${successCount} 个预警！`);
+                closeModal();
+                await loadAlerts();
+            }
+            if (messages.length > 0) {
+                alert(messages.join('\n'));
+            }
+        };
+
+        // 删除预警
+        const deleteAlert = async (alertId) => {
+            try {
+                const response = await fetch(`${API_BASE}/api/alerts/${alertId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                if (data.success) {
+                    await loadAlerts();
+                }
+            } catch (err) {
+                console.error('删除预警失败:', err);
+            }
+        };
+
+        // 清除触发提醒
+        const clearTriggeredAlerts = () => {
+            triggeredAlerts.value = [];
+        };
+
+        // 策略筛选股票
+        const screenStocks = async (strategyId) => {
+            currentStrategy.value = strategyId;
+            screenLoading.value = true;
+            screenedStocks.value = [];
+
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/api/screen?strategy=${strategyId}`, {}, 15000);
+                if (!response.ok) throw new Error('筛选失败');
+                const data = await response.json();
+
+                if (data.success) {
+                    screenedStocks.value = data.stocks || [];
+                    strategyConditions.value = data.conditions || [];
+                } else {
+                    alert(data.message || '筛选失败');
+                    screenedStocks.value = [];
+                }
+            } catch (err) {
+                console.error('策略筛选失败:', err);
+                alert('筛选失败，请重试');
+                screenedStocks.value = [];
+            } finally {
+                screenLoading.value = false;
+            }
+        };
+
+        // 加载大盘指数
+        const loadMarketIndices = async () => {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/api/market/indices`, {}, 5000);
+                if (!response.ok) throw new Error('获取大盘数据失败');
+                const data = await response.json();
+                if (data.success) {
+                    marketIndices.value = data.indices || [];
+                }
+            } catch (err) {
+                console.error('加载大盘指数失败:', err);
+            }
+        };
+
         // 初始化加载
         loadNews();
         loadWatchlist();
         loadRecommendations();
+        loadMorningReport();
+        loadAlerts();
+        loadMarketIndices();
 
         return {
             stockCode,
@@ -368,7 +554,30 @@ createApp({
             showSearchResults,
             onSearchInput,
             selectStock,
-            hideSearchResults
+            hideSearchResults,
+            // 早报相关
+            morningReport,
+            // 预警相关
+            alerts,
+            triggeredAlerts,
+            showAlertModal,
+            alertStock,
+            alertAbovePrice,
+            alertBelowPrice,
+            openAlertModal,
+            closeModal,
+            createAlerts,
+            deleteAlert,
+            clearTriggeredAlerts,
+            // 策略筛选相关
+            strategies,
+            currentStrategy,
+            strategyConditions,
+            screenedStocks,
+            screenLoading,
+            screenStocks,
+            // 大盘指数
+            marketIndices
         };
     }
 }).mount('#app');

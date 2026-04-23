@@ -109,12 +109,26 @@ class FinancialAnalyzer:
             industry_pe_value = None
             industry_pb_value = None
 
+        # 获取同行业对比数据，用于计算真实的行业平均PE/PB
+        try:
+            industry_comparison = stock_service.get_stocks_by_industry(stock_code)
+            industry_avg = industry_comparison.get("industry_avg", {})
+            if industry_avg:
+                # 使用同行业对比计算的平均值
+                if industry_avg.get("pe") and industry_avg["pe"] > 0:
+                    industry_pe_value = industry_avg["pe"]
+                if industry_avg.get("pb") and industry_avg["pb"] > 0:
+                    industry_pb_value = industry_avg["pb"]
+        except:
+            pass
+
         # 计算各项指标
         result = {
             "stock_code": stock_code,
             "stock_name": stock_name,
             "industry": industry,
             "industry_pe": industry_pe_value,
+            "industry_pb": industry_pb_value,
             "current_price": current_price,
             "price_change": price_change,
             "price_change_amount": price_change_amount,
@@ -185,13 +199,22 @@ class FinancialAnalyzer:
         return "未知"
 
     def _analyze_dividend_simplified(self, trade_data: Dict, stock_code: str) -> Dict:
-        """简化版股息率分析 - 基于典型高分红股票数据"""
+        """简化版股息率分析 - 优先从API获取，备用静态数据库"""
         global dividend_db
         current_price = trade_data.get("f43", 0)
 
-        stock_info = dividend_db.get(stock_code, {"cash": 0, "years": 0})
-        cash_dividend = stock_info["cash"]
-        continuous_years = stock_info["years"]
+        # 优先从API获取股息数据
+        cash_dividend = stock_service._get_dividend_from_api(stock_code)
+        continuous_years = 0
+
+        # 如果API没有数据，使用静态数据库
+        if cash_dividend == 0:
+            stock_info = dividend_db.get(stock_code, {"cash": 0, "years": 0})
+            cash_dividend = stock_info["cash"]
+            continuous_years = stock_info["years"]
+        else:
+            # API有数据时，估算连续分红年数（简化处理）
+            continuous_years = 5  # 假设有5年分红历史
 
         # 计算股息率
         dividend_yield = (cash_dividend / current_price * 100) if current_price and current_price > 0 else 0
@@ -280,62 +303,76 @@ class FinancialAnalyzer:
         }
 
     def _analyze_profit_quality_simplified(self, stock_code: str) -> Dict:
-        """简化版盈利质量分析"""
-        # 典型股票的ROE数据（5年）
-        roe_db = {
-            "600028": {"roe": [8.5, 7.2, 6.8, 7.5, 8.0], "positive": True, "profit": [355, 312, 280, 320, 350], "revenue": [28000, 26500, 25000, 27000, 27500]},
-            "600036": {"roe": [15.0, 14.5, 13.8, 12.5, 14.0], "positive": True, "profit": [900, 850, 800, 750, 820], "revenue": [3200, 3000, 2800, 2600, 2900]},
-            "601857": {"roe": [5.2, 4.8, 6.5, 7.0, 6.2], "positive": True, "profit": [180, 150, 200, 220, 200], "revenue": [25000, 23000, 26000, 28000, 27000]},
-            "601398": {"roe": [11.0, 10.5, 10.8, 11.2, 11.5], "positive": True, "profit": [360, 340, 350, 370, 380], "revenue": [8600, 8200, 8400, 8700, 8900]},
-        }
+        """简化版盈利质量分析 - 使用akshare获取真实ROE数据"""
+        # 尝试从API获取ROE数据
+        try:
+            financial_data = stock_service.get_financial_indicators(stock_code)
+            roe_api_data = financial_data.get("roe_history", [])
 
-        stock_info = roe_db.get(stock_code, {"roe": [8, 9, 10, 11, 12], "positive": True, "profit": [50, 55, 60, 65, 70], "revenue": [100, 110, 120, 130, 140]})
-        roe_history = stock_info["roe"]
-        profit_history = stock_info["profit"]
-        revenue_history = stock_info["revenue"]
-        net_profit_positive = stock_info["positive"]
+            if roe_api_data:
+                # 使用API获取的ROE数据
+                roe_history = [r["roe"] for r in roe_api_data]
+                avg_roe = financial_data.get("avg_roe", 0)
 
-        # 计算CAGR（复合年均增长率）
-        def calc_cagr(values, years=5):
-            if len(values) < 2 or values[-1] <= 0 or values[0] <= 0:
-                return None
-            return (values[-1] / values[0]) ** (1 / (years - 1)) - 1
+                # 构建历史数据
+                profit_history_data = []
+                for r in roe_api_data:
+                    profit_history_data.append({
+                        "year": r["year"],
+                        "roe": r["roe"],
+                        "net_profit": 0  # API暂未提供净利润数据
+                    })
 
-        revenue_cagr = calc_cagr(revenue_history) * 100 if calc_cagr(revenue_history) else None
-        profit_cagr = calc_cagr(profit_history) * 100 if calc_cagr(profit_history) else None
+                net_profit_positive = True
+            else:
+                raise Exception("API返回空数据")
 
-        avg_roe = sum(roe_history) / len(roe_history) if roe_history else 0
-        roe_excellent = all(r > 10 for r in roe_history)
-        roe_great = all(r > 15 for r in roe_history)
+        except Exception as e:
+            # API失败时使用静态数据库
+            print(f"ROE API失败，使用静态数据: {e}")
+            roe_db = {
+                "600028": {"roe": [3.86, 6.19, 7.59, 8.50, 9.35], "positive": True},
+                "600036": {"roe": [15.0, 14.5, 13.8, 12.5, 14.0], "positive": True},
+                "601857": {"roe": [5.2, 4.8, 6.5, 7.0, 6.2], "positive": True},
+                "601398": {"roe": [11.0, 10.5, 10.8, 11.2, 11.5], "positive": True},
+            }
+
+            stock_info = roe_db.get(stock_code, {"roe": [8, 9, 10, 11, 12], "positive": True})
+            roe_history = stock_info["roe"]
+            avg_roe = sum(roe_history) / len(roe_history) if roe_history else 0
+            net_profit_positive = stock_info["positive"]
+
+            years = [2024, 2023, 2022, 2021, 2020]
+            profit_history_data = []
+            for i, year in enumerate(years):
+                profit_history_data.append({
+                    "year": year,
+                    "roe": roe_history[i] if i < len(roe_history) else roe_history[-1],
+                    "net_profit": 0
+                })
+
+        # 判断ROE状态
+        roe_excellent = all(r > 10 for r in roe_history) if roe_history else False
+        roe_great = all(r > 15 for r in roe_history) if roe_history else False
 
         status = "不合格"
         color = "red"
         if net_profit_positive and roe_excellent:
             status = "优秀（ROE>10%）" if not roe_great else "卓越（ROE>15%）"
             color = "green"
-        elif net_profit_positive and all(r > 5 for r in roe_history):
+        elif net_profit_positive and all(r > 5 for r in roe_history) if roe_history else False:
             status = "良好"
             color = "lightgreen"
 
-        # 构建5年历史数据
-        years = [2024, 2023, 2022, 2021, 2020]
-        profit_history_data = []
-        for i, year in enumerate(years):
-            profit_history_data.append({
-                "year": year,
-                "roe": roe_history[i] if i < len(roe_history) else roe_history[-1],
-                "net_profit": profit_history[i] if i < len(profit_history) else profit_history[-1]
-            })
-
         return {
             "net_profit_positive": net_profit_positive,
-            "profit_growth": [5.2, 3.1, -2.1, 8.5, 6.2],
+            "profit_growth": [5.2, 3.1, -2.1, 8.5, 6.2],  # 模拟数据
             "roe_history": profit_history_data,
             "avg_roe": round(avg_roe, 2),
             "roe_status": status,
             "color": color,
-            "revenue_cagr": round(revenue_cagr, 1) if revenue_cagr else None,
-            "profit_cagr": round(profit_cagr, 1) if profit_cagr else None
+            "revenue_cagr": None,  # 需要营收数据
+            "profit_cagr": None
         }
 
     def _analyze_cash_flow_simplified(self, stock_code: str) -> Dict:
@@ -387,18 +424,49 @@ class FinancialAnalyzer:
         }
 
     def _analyze_debt_ratio_simplified(self, stock_code: str) -> Dict:
-        """简化版资产负债分析"""
-        # 典型股票的资产负债率（5年）
-        debt_db = {
-            "600028": [35.5, 36.2, 38.1, 37.5, 40.2],
-            "600036": [92.0, 91.5, 92.8, 93.2, 92.5],  # 银行特殊
-            "601857": [45.2, 48.5, 52.0, 50.5, 55.0],
-            "601398": [92.0, 91.8, 92.5, 93.0, 92.8],  # 银行特殊
-        }
+        """简化版资产负债分析 - 使用akshare获取真实负债率数据"""
+        # 尝试从API获取负债率数据
+        try:
+            financial_data = stock_service.get_financial_indicators(stock_code)
+            debt_api_data = financial_data.get("debt_history", [])
 
-        debt_history = debt_db.get(stock_code, [50.0, 52.0, 55.0, 53.0, 58.0])
-        debt_ratio = debt_history[0]
+            if debt_api_data:
+                # 使用API获取的负债率数据
+                debt_history = [d["debt_ratio"] for d in debt_api_data]
+                debt_ratio = financial_data.get("latest_debt_ratio", 0)
 
+                # 构建历史数据
+                debt_history_data = []
+                for d in debt_api_data:
+                    debt_history_data.append({
+                        "year": d["year"],
+                        "debt_ratio": d["debt_ratio"]
+                    })
+            else:
+                raise Exception("API返回空数据")
+
+        except Exception as e:
+            # API失败时使用静态数据库
+            print(f"负债率API失败，使用静态数据: {e}")
+            debt_db = {
+                "600028": [54.08, 53.17, 52.70, 51.91, 51.51],
+                "600036": [92.0, 91.5, 92.8, 93.2, 92.5],  # 银行特殊
+                "601857": [45.2, 48.5, 52.0, 50.5, 55.0],
+                "601398": [92.0, 91.8, 92.5, 93.0, 92.8],  # 银行特殊
+            }
+
+            debt_history = debt_db.get(stock_code, [50.0, 52.0, 55.0, 53.0, 58.0])
+            debt_ratio = debt_history[0]
+
+            years = [2024, 2023, 2022, 2021, 2020]
+            debt_history_data = []
+            for i, year in enumerate(years):
+                debt_history_data.append({
+                    "year": year,
+                    "debt_ratio": debt_history[i] if i < len(debt_history) else debt_history[-1]
+                })
+
+        # 判断负债率状态
         status = "不合格"
         color = "red"
         if debt_ratio < 40:
@@ -413,15 +481,6 @@ class FinancialAnalyzer:
         else:
             status = f"行业特性（{debt_ratio:.1f}%）"
             color = "gray"
-
-        # 构建5年历史数据
-        years = [2024, 2023, 2022, 2021, 2020]
-        debt_history_data = []
-        for i, year in enumerate(years):
-            debt_history_data.append({
-                "year": year,
-                "debt_ratio": debt_history[i] if i < len(debt_history) else debt_history[-1]
-            })
 
         return {
             "debt_ratio": round(debt_ratio, 2),
@@ -572,9 +631,9 @@ class FinancialAnalyzer:
             "valuation_status": valuation_status,
             "valuation_color": valuation_color,
             "valuation_suggestion": valuation_suggestion,
-            # 保留原有字段兼容
-            "pe_valuation": self._get_valuation_status(pe_ttm, pe_percentile),
-            "pb_valuation": self._get_valuation_status(pb, pb_percentile),
+            # 保留原有字段兼容 - 传入行业平均值和历史数据量
+            "pe_valuation": self._get_valuation_status(pe_ttm, pe_percentile, industry_pe, len(pe_history) if pe_history else 0),
+            "pb_valuation": self._get_valuation_status(pb, pb_percentile, industry_pb, len(pb_history) if pb_history else 0),
             # 历史数据信息
             "history_count": len(pe_history) if pe_history else 0,
             "history_note": "分位数基于本地历史数据" if len(pe_history or []) >= 30 else "⚠️ 历史数据不足，分位数可能不准确（需积累更多数据）",
@@ -604,29 +663,63 @@ class FinancialAnalyzer:
         count_below = sum(1 for h in sorted_history if h <= current)
         return (count_below / len(sorted_history)) * 100
 
-    def _get_valuation_status(self, value: float, percentile: float) -> Dict:
-        """判断估值状态"""
+    def _get_valuation_status(self, value: float, percentile: float, industry_avg: float = None, history_count: int = 0) -> Dict:
+        """判断估值状态
+
+        Args:
+            value: 当前值（PE或PB）
+            percentile: 历史分位数
+            industry_avg: 行业平均值
+            history_count: 历史数据量
+        """
         if value <= 0:
             return {"status": "无数据", "color": "gray", "value": 0}
 
         status = "适中"
         color = "gray"
 
-        if percentile < 20:
-            status = "极低（历史底部）"
-            color = "green"
-        elif percentile < 40:
-            status = "偏低"
-            color = "lightgreen"
-        elif percentile < 60:
-            status = "适中"
-            color = "gray"
-        elif percentile < 80:
-            status = "偏高"
-            color = "orange"
+        # 历史数据充足时，使用分位数判断
+        if history_count >= 30:
+            if percentile < 20:
+                status = "极低（历史底部）"
+                color = "green"
+            elif percentile < 40:
+                status = "偏低"
+                color = "lightgreen"
+            elif percentile < 60:
+                status = "适中"
+                color = "gray"
+            elif percentile < 80:
+                status = "偏高"
+                color = "orange"
+            else:
+                status = "极高（历史顶部）"
+                color = "red"
         else:
-            status = "极高（历史顶部）"
-            color = "red"
+            # 历史数据不足时，结合行业对比判断
+            if industry_avg and industry_avg > 0:
+                ratio = value / industry_avg
+                if ratio < 0.7:
+                    status = "偏低（相对行业）"
+                    color = "green"
+                elif ratio < 0.9:
+                    status = "合理偏低"
+                    color = "lightgreen"
+                elif ratio <= 1.1:
+                    status = "适中"
+                    color = "gray"
+                elif ratio <= 1.3:
+                    status = "合理偏高"
+                    color = "orange"
+                else:
+                    status = "偏高（相对行业）"
+                    color = "red"
+            else:
+                # 没有行业数据时，使用绝对值判断
+                # PB标准：<1.5低估，1.5-3合理，>3高估
+                # PE标准：<15低估，15-25合理，>25高估
+                status = "适中"
+                color = "gray"
 
         return {"status": status, "color": color, "value": value}
 
@@ -975,4 +1068,15 @@ dividend_db = {
     "600519": {"cash": 2.974, "years": 10}, # 贵州茅台
     "000333": {"cash": 0.35, "years": 10},  # 美的集团
     "600887": {"cash": 0.176, "years": 10}, # 伊利股份
+    "601088": {"cash": 2.26, "years": 18},  # 中国神华
+    "601225": {"cash": 0.33, "years": 10},  # 陕西煤业
+    "601666": {"cash": 0.6, "years": 15},   # 平煤股份
+    "000651": {"cash": 0.4, "years": 15},   # 格力电器
+    "000002": {"cash": 0.25, "years": 20},  # 万科A
+    # 煤炭行业
+    "600188": {"cash": 1.0, "years": 10},   # 兖矿能源
+    "600348": {"cash": 0.6, "years": 8},    # 华阳股份
+    "601101": {"cash": 0.4, "years": 8},    # 昊华能源
+    "600792": {"cash": 0.15, "years": 5},   # 云煤能源
+    "600925": {"cash": 0.2, "years": 3},    # 苏能股份
 }

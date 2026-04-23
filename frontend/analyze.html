@@ -6,6 +6,8 @@
     <title>股票分析结果</title>
     <!-- 使用国内CDN加速 -->
     <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+    <!-- ECharts -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
     <!-- 使用系统字体，移除Google Fonts阻塞 -->
     <link rel="stylesheet" href="styles.css">
     <style>
@@ -74,6 +76,7 @@
         <div v-if="loading" class="loading">
             <div class="spinner"></div>
             <p>正在获取数据并分析...</p>
+            <p style="font-size: 0.8rem; color: var(--text-light); margin-top: 8px;">首次加载可能需要10-20秒</p>
         </div>
 
         <!-- 错误提示 -->
@@ -84,104 +87,507 @@
         <!-- 分析结果 -->
         <div v-if="result && !loading">
             <!-- 股票信息和评分并排 -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-                <!-- 股票基本信息 -->
-                <div class="stock-header">
-                    <div class="stock-title">
-                        <h2>{{ result.stock_name }}</h2>
-                        <span class="stock-code">{{ result.stock_code }}</span>
-                        <button v-if="!inWatchlist" @click="addToWatchlistFromAnalyze" style="margin-left: 8px; padding: 4px 10px; background: #10b981; color: white; border: none; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">+ 加入自选股</button>
-                        <span v-else style="margin-left: 8px; padding: 4px 10px; background: #e2e8f0; color: #64748b; border-radius: 4px; font-size: 0.75rem;">✓ 已加入自选</span>
-                    </div>
-                    <div class="stock-price-row">
-                        <span class="current-price">¥{{ result.current_price }}</span>
-                        <span class="price-change" :class="result.price_change >= 0 ? 'up' : 'down'">
-                            {{ result.price_change >= 0 ? '+' : '' }}{{ result.price_change }}%
-                            ({{ result.price_change_amount >= 0 ? '+' : '' }}{{ result.price_change_amount }})
+            <div style="display: flex; gap: 16px; margin-bottom: 16px;">
+                <!-- 左半边：基础信息 + 公司概况 (70%) -->
+                <div class="stock-header" style="flex: 7; display: flex; flex-direction: column; padding: 16px;">
+                    <!-- 第一行：名称、代码、价格、涨跌幅 -->
+                    <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                        <h2 style="margin: 0; font-size: 1.3rem;">{{ result.stock_name }}</h2>
+                        <span class="stock-code" style="font-size: 0.85rem;">{{ result.stock_code }}</span>
+                        <span :style="{color: result.price_change >= 0 ? '#ef4444' : '#22c55e', fontSize: '1.2rem', fontWeight: '700'}">¥{{ result.current_price }}</span>
+                        <span :style="{
+                            color: result.price_change >= 0 ? '#ef4444' : '#22c55e',
+                            fontSize: '0.85rem',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: result.price_change >= 0 ? '#fee2e2' : '#d1fae5'
+                        }">
+                            {{ result.price_change >= 0 ? '+' : '' }}{{ result.price_change }}% ({{ result.price_change_amount >= 0 ? '+' : '' }}{{ result.price_change_amount }})
                         </span>
+                        <button v-if="!inWatchlist" @click="addToWatchlistFromAnalyze" style="padding: 3px 10px; background: #10b981; color: white; border: none; border-radius: 12px; font-size: 0.7rem; cursor: pointer;">+自选</button>
+                        <span v-else style="padding: 3px 10px; background: #d1fae5; color: #059669; border-radius: 12px; font-size: 0.7rem;">✓已加</span>
                     </div>
-                    <div class="stock-industry">所属行业：{{ result.industry }}</div>
-                    <div class="analysis-date">分析时间：{{ result.analysis_date }}</div>
+                    <!-- 第二行：行业、分析时间 -->
+                    <div style="display: flex; gap: 20px; margin-top: 6px; font-size: 0.75rem; color: rgba(255,255,255,0.85);">
+                        <span>行业：<span style="color: #ffffff; font-weight: 500;">{{ result.industry }}</span></span>
+                        <span>分析：<span style="color: rgba(255,255,255,0.85);">{{ result.analysis_date }}</span></span>
+                    </div>
+
+                    <!-- 公司简介（如果有） -->
+                    <div v-if="companyProfile && companyProfile.profile" style="margin-top: 10px; font-size: 0.8rem; color: rgba(255,255,255,0.9); line-height: 1.7;">
+                        {{ companyProfile.profile }}
+                    </div>
+
+                    <!-- 近期事件（只有有事件时才显示） -->
+                    <div v-if="companyProfile && companyProfile.events && companyProfile.events.length > 0" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-primary);">📋 近期事件</span>
+                            <span style="font-size: 0.65rem; color: #3b82f6; cursor: pointer;" @click="showCompanyProfile = !showCompanyProfile">{{ showCompanyProfile ? '收起' : '展开' }}</span>
+                        </div>
+                        <div v-show="showCompanyProfile" style="display: flex; flex-direction: column; gap: 4px;">
+                            <div v-for="event in companyProfile.events" :key="event.title"
+                                 :style="{
+                                     padding: '6px 10px',
+                                     borderRadius: '6px',
+                                     background: event.sentiment === 'positive' ? '#d1fae5' :
+                                                event.sentiment === 'negative' ? '#fee2e2' : 'var(--bg-secondary)',
+                                     border: event.sentiment === 'positive' ? '1px solid #10b981' :
+                                             event.sentiment === 'negative' ? '1px solid #ef4444' : '1px solid var(--border-color)'
+                                 }">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                                    <div style="display: flex; gap: 4px; align-items: center;">
+                                        <span :style="{
+                                            fontSize: '0.6rem',
+                                            padding: '1px 5px',
+                                            borderRadius: '3px',
+                                            background: event.type === '公告' ? '#dbeafe' : '#dcfce7',
+                                            color: event.type === '公告' ? '#1d4ed8' : '#059669',
+                                            fontWeight: '500'
+                                        }">{{ event.type }}</span>
+                                        <span v-if="event.sentiment" :style="{
+                                            fontSize: '0.6rem',
+                                            padding: '1px 6px',
+                                            borderRadius: '8px',
+                                            fontWeight: '600',
+                                            background: event.sentiment === 'positive' ? '#10b981' :
+                                                       event.sentiment === 'negative' ? '#ef4444' : '#94a3b8',
+                                            color: 'white'
+                                        }">{{ event.sentiment === 'positive' ? '利好' : event.sentiment === 'negative' ? '利空' : '中性' }}</span>
+                                    </div>
+                                    <span style="font-size: 0.65rem; color: var(--text-light);">{{ event.date }}</span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--text-primary); line-height: 1.3;">
+                                    <a v-if="event.url" :href="event.url" target="_blank" style="color: inherit; text-decoration: none;">{{ event.title }}</a>
+                                    <span v-else>{{ event.title }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- 综合评分 -->
-                <div class="score-card">
-                    <div :class="['score-circle', result.overall_score.rating.toLowerCase()]">
-                        <span class="score-value">{{ result.overall_score.score }}</span>
-                        <span class="score-label">综合得分</span>
-                    </div>
-                    <div class="score-info">
-                        <div class="score-rating" :class="result.overall_score.rating.toLowerCase()">
-                            评级：{{ result.overall_score.rating }}
+                <!-- 右半边：综合评分 (30%) -->
+                <div class="score-card" style="flex: 3; min-width: 180px; padding: 16px; display: flex; flex-direction: column; align-items: center;">
+                    <!-- 分数展示区 -->
+                    <div style="position: relative; width: 120px; height: 120px;">
+                        <!-- 背景环 -->
+                        <svg width="120" height="120" style="position: absolute; top: 0; left: 0;">
+                            <defs>
+                                <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" :stop-color="getScoreGradient(result.overall_score.score).start"/>
+                                    <stop offset="100%" :stop-color="getScoreGradient(result.overall_score.score).end"/>
+                                </linearGradient>
+                            </defs>
+                            <circle cx="60" cy="60" r="52" fill="none" stroke="#e5e7eb" stroke-width="6"/>
+                            <circle cx="60" cy="60" r="52" fill="none" stroke="url(#scoreGradient)" stroke-width="6" stroke-linecap="round" :stroke-dasharray="getScoreDash(result.overall_score.score)" transform="rotate(-90 60 60)"/>
+                        </svg>
+                        <!-- 分数 + 评级 -->
+                        <div style="position: absolute; top: 0; left: 0; width: 120px; height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <span style="font-size: 2.2rem; font-weight: 800;" :style="{color: getScoreGradient(result.overall_score.score).start}">{{ result.overall_score.score }}</span>
+                            <span style="font-size: 0.75rem; font-weight: 600; margin-top: 2px;" :style="{color: getScoreGradient(result.overall_score.score).end}">{{ result.overall_score.rating }}</span>
+                            <span style="font-size: 0.6rem; color: #9ca3af;">综合评分</span>
                         </div>
-                        <div style="font-size: 0.75rem; margin-top: 6px; line-height: 1.6;">
-                            <div v-if="result.overall_score.suggestion.pros" style="color: #059669; margin-bottom: 4px;">
-                                <span style="font-weight: 600;">✅ 优点：</span>{{ result.overall_score.suggestion.pros }}
-                            </div>
-                            <div v-if="result.overall_score.suggestion.cons" style="color: #dc2626; margin-bottom: 4px;">
-                                <span style="font-weight: 600;">⚠️ 注意：</span>{{ result.overall_score.suggestion.cons }}
-                            </div>
-                            <div style="color: var(--text-primary); font-weight: 500; padding-top: 4px; border-top: 1px dashed var(--border-color);">
-                                {{ result.overall_score.suggestion.summary }}
-                            </div>
+                    </div>
+                    <!-- 优缺点 -->
+                    <div style="margin-top: 16px; width: 100%; font-size: 0.7rem; line-height: 1.5;">
+                        <div v-if="result.overall_score.suggestion.pros" style="color: #059669; margin-bottom: 5px; padding: 8px 10px; background: linear-gradient(135deg, #ecfdf5, #d1fae5); border-radius: 8px; border-left: 3px solid #10b981;">
+                            <span style="font-weight: 600;">优点</span><br/>{{ result.overall_score.suggestion.pros }}
+                        </div>
+                        <div v-if="result.overall_score.suggestion.cons" style="color: #b91c1c; margin-bottom: 5px; padding: 8px 10px; background: linear-gradient(135deg, #fef2f2, #fee2e2); border-radius: 8px; border-left: 3px solid #ef4444;">
+                            <span style="font-weight: 600;">注意</span><br/>{{ result.overall_score.suggestion.cons }}
+                        </div>
+                        <div style="color: var(--text-primary); padding: 8px 10px; background: var(--bg-secondary); border-radius: 8px; text-align: center; font-weight: 500;">
+                            {{ result.overall_score.suggestion.summary }}
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 风险排查 -->
-            <h3 class="section-title">风险排查</h3>
-            <div class="metrics-grid">
-                <div class="metric-card" style="grid-column: 1 / -1;">
+
+            <!-- 趋势分析与资金流向 -->
+            <h3 class="section-title">趋势分析与资金流向<span class="help-icon" data-tip="趋势分析帮助判断大方向：&#10;• 上升趋势：可考虑逢低买入&#10;• 下降趋势：建议观望或减仓&#10;• 震荡趋势：轻仓或观望&#10;&#10;资金流向看主力动向：&#10;• 主力净流入为正：主力在买，利好&#10;• 主力净流入为负：主力在卖，利空">?</span></h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <!-- 趋势分析 -->
+                <div class="metric-card" style="padding: 12px;">
                     <div class="metric-header">
-                        <span class="metric-name">风险状态</span>
+                        <span class="metric-name">趋势分析</span>
+                        <span v-if="trendData" class="metric-status" :style="{
+                            background: trendData.trend === 'up' ? '#d1fae5' : trendData.trend === 'down' ? '#fee2e2' : '#fef3c7',
+                            color: trendData.trend === 'up' ? '#065f46' : trendData.trend === 'down' ? '#991b1b' : '#92400e'
+                        }">
+                            {{ trendData.trend_name }}
+                        </span>
+                    </div>
+                    <div v-if="trendData" style="margin-top: 8px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                            <span style="font-size: 0.8rem; color: var(--text-light);">趋势强度</span>
+                            <div style="display: flex; align-items: center; gap: 8px; flex: 1; margin-left: 12px;">
+                                <div style="flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                    <div :style="{
+                                        width: trendData.strength + '%',
+                                        height: '100%',
+                                        background: trendData.trend === 'up' ? '#10b981' : trendData.trend === 'down' ? '#ef4444' : '#f59e0b'
+                                    }"></div>
+                                </div>
+                                <span style="font-size: 0.85rem; font-weight: 600;">{{ trendData.strength }}</span>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem; margin-bottom: 8px;">
+                            <div style="display: flex; justify-content: space-between; padding: 4px 8px; background: var(--bg-secondary); border-radius: 4px;">
+                                <span style="color: var(--text-light);">均线状态</span>
+                                <span>{{ trendData.ma_status }}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 4px 8px; background: var(--bg-secondary); border-radius: 4px;">
+                                <span style="color: var(--text-light);">价格位置</span>
+                                <span>{{ trendData.price_position }}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 4px 8px; background: var(--bg-secondary); border-radius: 4px;">
+                                <span style="color: var(--text-light);">5日涨跌</span>
+                                <span :style="{color: trendData.change_5d >= 0 ? '#10b981' : '#ef4444'}">{{ trendData.change_5d >= 0 ? '+' : '' }}{{ trendData.change_5d }}%</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; padding: 4px 8px; background: var(--bg-secondary); border-radius: 4px;">
+                                <span style="color: var(--text-light);">20日涨跌</span>
+                                <span :style="{color: trendData.change_20d >= 0 ? '#10b981' : '#ef4444'}">{{ trendData.change_20d >= 0 ? '+' : '' }}{{ trendData.change_20d }}%</span>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-primary); padding: 8px; background: #f0f9ff; border-radius: 6px;">
+                            💡 {{ trendData.suggestion }}
+                        </div>
+                    </div>
+                    <div v-else-if="trendError" style="text-align: center; color: #ef4444; padding: 20px; font-size: 0.85rem;">⚠️ 趋势数据加载失败</div>
+                    <div v-else style="text-align: center; color: var(--text-light); padding: 20px;">加载中...</div>
+                </div>
+
+                <!-- 资金流向 -->
+                <div class="metric-card" style="padding: 12px;">
+                    <div class="metric-header">
+                        <span class="metric-name">资金流向</span>
+                        <span v-if="moneyFlowData" class="metric-status" :style="{
+                            background: moneyFlowData.main_net >= 0 ? '#d1fae5' : '#fee2e2',
+                            color: moneyFlowData.main_net >= 0 ? '#065f46' : '#991b1b'
+                        }">
+                            主力{{ moneyFlowData.main_net >= 0 ? '流入' : '流出' }} {{ formatMoney(Math.abs(moneyFlowData.main_net), 1) }}万
+                        </span>
+                    </div>
+                    <div v-if="moneyFlowData" style="margin-top: 8px;">
+                        <!-- 主力资金 -->
+                        <div style="margin-bottom: 10px;">
+                            <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 4px;">主力资金（万元）</div>
+                            <div style="display: flex; gap: 4px; height: 24px;">
+                                <div style="flex: 1; background: #d1fae5; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem;">
+                                    流入 {{ formatMoney(moneyFlowData.main_inflow, 0) }}
+                                </div>
+                                <div style="flex: 1; background: #fee2e2; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem;">
+                                    流出 {{ formatMoney(moneyFlowData.main_outflow, 0) }}
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 分类资金 -->
+                        <div style="font-size: 0.75rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                                <div style="padding: 6px 8px; background: var(--bg-secondary); border-radius: 4px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                        <span style="color: var(--text-light);">超大单净流入</span>
+                                        <span :style="{color: (moneyFlowData.super_inflow - moneyFlowData.super_outflow) >= 0 ? '#10b981' : '#ef4444', fontWeight: '600'}">
+                                            {{ (moneyFlowData.super_inflow - moneyFlowData.super_outflow) >= 0 ? '+' : '' }}{{ formatMoney((moneyFlowData.super_inflow || 0) - (moneyFlowData.super_outflow || 0), 1) }}万
+                                        </span>
+                                    </div>
+                                    <div style="font-size: 0.65rem; color: var(--text-light);">
+                                        流入 {{ formatMoney(moneyFlowData.super_inflow || 0, 0) }} / 流出 {{ formatMoney(moneyFlowData.super_outflow || 0, 0) }}
+                                    </div>
+                                </div>
+                                <div style="padding: 6px 8px; background: var(--bg-secondary); border-radius: 4px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                        <span style="color: var(--text-light);">大单净流入</span>
+                                        <span :style="{color: (moneyFlowData.big_inflow - moneyFlowData.big_outflow) >= 0 ? '#10b981' : '#ef4444', fontWeight: '600'}">
+                                            {{ (moneyFlowData.big_inflow - moneyFlowData.big_outflow) >= 0 ? '+' : '' }}{{ formatMoney((moneyFlowData.big_inflow || 0) - (moneyFlowData.big_outflow || 0), 1) }}万
+                                        </span>
+                                    </div>
+                                    <div style="font-size: 0.65rem; color: var(--text-light);">
+                                        流入 {{ formatMoney(moneyFlowData.big_inflow || 0, 0) }} / 流出 {{ formatMoney(moneyFlowData.big_outflow || 0, 0) }}
+                                    </div>
+                                </div>
+                                <div style="padding: 6px 8px; background: var(--bg-secondary); border-radius: 4px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                        <span style="color: var(--text-light);">中单净流入</span>
+                                        <span :style="{color: (moneyFlowData.mid_inflow - moneyFlowData.mid_outflow) >= 0 ? '#10b981' : '#ef4444', fontWeight: '600'}">
+                                            {{ (moneyFlowData.mid_inflow - moneyFlowData.mid_outflow) >= 0 ? '+' : '' }}{{ formatMoney((moneyFlowData.mid_inflow || 0) - (moneyFlowData.mid_outflow || 0), 1) }}万
+                                        </span>
+                                    </div>
+                                    <div style="font-size: 0.65rem; color: var(--text-light);">
+                                        流入 {{ formatMoney(moneyFlowData.mid_inflow || 0, 0) }} / 流出 {{ formatMoney(moneyFlowData.mid_outflow || 0, 0) }}
+                                    </div>
+                                </div>
+                                <div style="padding: 6px 8px; background: var(--bg-secondary); border-radius: 4px;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                                        <span style="color: var(--text-light);">小单净流入</span>
+                                        <span :style="{color: (moneyFlowData.small_inflow - moneyFlowData.small_outflow) >= 0 ? '#10b981' : '#ef4444', fontWeight: '600'}">
+                                            {{ (moneyFlowData.small_inflow - moneyFlowData.small_outflow) >= 0 ? '+' : '' }}{{ formatMoney((moneyFlowData.small_inflow || 0) - (moneyFlowData.small_outflow || 0), 1) }}万
+                                        </span>
+                                    </div>
+                                    <div style="font-size: 0.65rem; color: var(--text-light);">
+                                        流入 {{ formatMoney(moneyFlowData.small_inflow || 0, 0) }} / 流出 {{ formatMoney(moneyFlowData.small_outflow || 0, 0) }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.75rem; color: var(--text-light); margin-top: 8px; padding: 6px; background: #fef3c7; border-radius: 4px;">
+                            💡 主力净流入为正说明主力在买入，利好看涨；为负说明主力在卖出，利空看跌
+                        </div>
+                    </div>
+                    <div v-else-if="moneyFlowError" style="text-align: center; color: #ef4444; padding: 20px; font-size: 0.85rem;">⚠️ 资金流向数据加载失败</div>
+                    <div v-else style="text-align: center; color: var(--text-light); padding: 20px;">加载中...</div>
+                </div>
+            </div>
+
+            <!-- 综合买卖建议 -->
+            <div class="metric-card" style="margin-top: 12px; padding: 16px;">
+                <div class="metric-header">
+                    <span class="metric-name" style="font-size: 1rem;">📊 综合买卖建议</span>
+                </div>
+                <div v-if="trendData && moneyFlowData" style="margin-top: 12px; display: flex; gap: 8px;">
+                    <!-- 1. 不建议买入：趋势向下 + 主力流出 -->
+                    <div :style="{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        background: (trendData.trend === 'down' && moneyFlowData.main_net < 0) ? '#fee2e2' : '#f8fafc',
+                        border: (trendData.trend === 'down' && moneyFlowData.main_net < 0) ? '2px solid #ef4444' : '1px solid var(--border-color)',
+                        flex: 1
+                    }">
+                        <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px; color: #ef4444;">⚠️ 不建议买入</div>
+                        <div style="font-size: 0.7rem; color: var(--text-light);">趋势向下 + 主力流出</div>
+                        <div style="font-size: 0.7rem; color: var(--text-primary); margin-top: 4px;">
+                            <span :style="{color: (trendData.trend === 'down' && moneyFlowData.main_net < 0) ? '#ef4444' : '#10b981'}">
+                                {{ (trendData.trend === 'down' && moneyFlowData.main_net < 0) ? '✓ 建议观望' : '✗ 不符合' }}
+                            </span>
+                        </div>
+                    </div>
+                    <!-- 2. 趋势资金背离：趋势向下 + 主力流入 -->
+                    <div :style="{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        background: (trendData.trend === 'down' && moneyFlowData.main_net >= 0) ? '#fef3c7' : '#f8fafc',
+                        border: (trendData.trend === 'down' && moneyFlowData.main_net >= 0) ? '2px solid #f59e0b' : '1px solid var(--border-color)',
+                        flex: 1
+                    }">
+                        <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px; color: #d97706;">⚡ 趋势资金背离</div>
+                        <div style="font-size: 0.7rem; color: var(--text-light);">趋势向下 + 主力流入</div>
+                        <div style="font-size: 0.7rem; color: var(--text-primary); margin-top: 4px;">
+                            <span :style="{color: (trendData.trend === 'down' && moneyFlowData.main_net >= 0) ? '#d97706' : '#10b981'}">
+                                {{ (trendData.trend === 'down' && moneyFlowData.main_net >= 0) ? '✓ 建议观望等转好' : '✗ 不符合' }}
+                            </span>
+                        </div>
+                    </div>
+                    <!-- 3. 震荡观望：趋势震荡 -->
+                    <div :style="{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        background: (trendData.trend === 'sideways') ? '#fef3c7' : '#f8fafc',
+                        border: (trendData.trend === 'sideways') ? '2px solid #f59e0b' : '1px solid var(--border-color)',
+                        flex: 1
+                    }">
+                        <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px; color: #d97706;">📊 震荡观望</div>
+                        <div style="font-size: 0.7rem; color: var(--text-light);">趋势不明朗</div>
+                        <div style="font-size: 0.7rem; color: var(--text-primary); margin-top: 4px;">
+                            <span :style="{color: (trendData.trend === 'sideways') ? '#d97706' : '#10b981'}">
+                                {{ (trendData.trend === 'sideways') ? '✓ 轻仓或观望' : '✗ 不符合' }}
+                            </span>
+                        </div>
+                    </div>
+                    <!-- 4. 可以考虑买入：趋势向上 + 主力流入 -->
+                    <div :style="{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        background: (trendData.trend === 'up' && moneyFlowData.main_net > 0) ? '#d1fae5' : '#f8fafc',
+                        border: (trendData.trend === 'up' && moneyFlowData.main_net > 0) ? '2px solid #10b981' : '1px solid var(--border-color)',
+                        flex: 1
+                    }">
+                        <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px; color: #10b981;">✅ 可以考虑买入</div>
+                        <div style="font-size: 0.7rem; color: var(--text-light);">趋势向上 + 主力流入</div>
+                        <div style="font-size: 0.7rem; color: var(--text-primary); margin-top: 4px;">
+                            <span :style="{color: (trendData.trend === 'up' && moneyFlowData.main_net > 0) ? '#10b981' : '#ef4444'}">
+                                {{ (trendData.trend === 'up' && moneyFlowData.main_net > 0) ? '✓ 可考虑买入' : '✗ 不符合' }}
+                            </span>
+                        </div>
+                    </div>
+                    <!-- 5. 更好的买点：趋势向上 + 主力流入 + 技术超卖 -->
+                    <div :style="{
+                        padding: '10px',
+                        borderRadius: '8px',
+                        background: (trendData.trend === 'up' && moneyFlowData.main_net > 0 && indicatorSignals && indicatorSignals.some(s => s.signal.includes('超卖'))) ? '#d1fae5' : '#f8fafc',
+                        border: (trendData.trend === 'up' && moneyFlowData.main_net > 0 && indicatorSignals && indicatorSignals.some(s => s.signal.includes('超卖'))) ? '2px solid #059669' : '1px solid var(--border-color)',
+                        flex: 1
+                    }">
+                        <div style="font-weight: 600; font-size: 0.8rem; margin-bottom: 4px; color: #059669;">🎯 更好的买点</div>
+                        <div style="font-size: 0.7rem; color: var(--text-light);">趋势向上+主力流入+超卖</div>
+                        <div style="font-size: 0.7rem; color: var(--text-primary); margin-top: 4px;">
+                            <span :style="{color: (trendData.trend === 'up' && moneyFlowData.main_net > 0 && indicatorSignals && indicatorSignals.some(s => s.signal.includes('超卖'))) ? '#059669' : '#ef4444'}">
+                                {{ (trendData.trend === 'up' && moneyFlowData.main_net > 0 && indicatorSignals && indicatorSignals.some(s => s.signal.includes('超卖'))) ? '✓ 较好买点' : '✗ 不符合' }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div v-else style="text-align: center; padding: 20px; color: var(--text-light);">
+                    <span v-if="trendError || moneyFlowError" style="color: #ef4444;">⚠️ 部分数据加载失败，无法生成建议</span>
+                    <span v-else>加载中...</span>
+                </div>
+            </div>
+
+            <!-- 技术分析区域（置顶显示） -->
+            <h3 class="section-title">
+                技术分析
+                <span class="help-icon" data-tip="K线图反映股价走势，MACD/RSI/KDJ是常用的技术指标，帮助判断买卖时机。红色表示上涨，绿色表示下跌。">?</span>
+            </h3>
+
+            <!-- K线图表卡片 -->
+            <div class="metric-card" style="padding: 16px;">
+                <div class="metric-header" style="margin-bottom: 12px;">
+                    <span class="metric-name">
+                        K线图表
+                        <span class="help-icon" data-tip="下方柱状图为成交量，反映股票交易活跃度&#10;&#10;成交量使用技巧：&#10;• 红柱放量上涨 → 买盘积极，趋势延续&#10;• 绿柱放量下跌 → 恐慌抛售，或近底部&#10;• 缩量横盘 → 观望情绪，等待方向&#10;• 天量天价 → 放天量时往往见顶">?</span>
+                    </span>
+                    <div style="display: flex; gap: 8px;">
+                        <button @click="loadChart('daily')" :class="['period-btn', chartPeriod === 'daily' ? 'active' : '']">日K</button>
+                        <button @click="loadChart('weekly')" :class="['period-btn', chartPeriod === 'weekly' ? 'active' : '']">周K</button>
+                        <button @click="loadChart('monthly')" :class="['period-btn', chartPeriod === 'monthly' ? 'active' : '']">月K</button>
+                    </div>
+                </div>
+
+                <!-- K线图 -->
+                <div id="kline-chart" style="width: 100%; height: 400px;"></div>
+
+                <!-- 指标切换 -->
+                <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center;">
+                    <span style="font-size: 0.75rem; color: var(--text-light);">叠加指标：</span>
+                    <button @click="toggleIndicator('ma')" :class="['indicator-btn', activeIndicators.includes('ma') ? 'active' : '']">均线 MA</button>
+                    <button @click="toggleIndicator('boll')" :class="['indicator-btn', activeIndicators.includes('boll') ? 'active' : '']">布林带 BOLL</button>
+                    <button @click="toggleIndicator('kdj')" :class="['indicator-btn', activeIndicators.includes('kdj') ? 'active' : '']">KDJ</button>
+                    <button @click="toggleIndicator('rsi')" :class="['indicator-btn', activeIndicators.includes('rsi') ? 'active' : '']">RSI</button>
+                    <button @click="toggleIndicator('macd')" :class="['indicator-btn', activeIndicators.includes('macd') ? 'active' : '']">MACD</button>
+                </div>
+
+                <!-- 指标参考区间 -->
+                <div style="margin-top: 10px; font-size: 0.7rem; color: var(--text-light); background: var(--bg-secondary); border-radius: 6px; padding: 8px 12px;">
+                    <div style="display: grid; grid-template-columns: 60px 1fr 1fr 1fr; gap: 8px; align-items: center;">
+                        <div style="font-weight: 600; color: var(--text-primary);">指标</div>
+                        <div style="color: #10b981;">超卖区（可买）</div>
+                        <div>正常区</div>
+                        <div style="color: #ef4444;">超买区（可卖）</div>
+
+                        <div style="font-weight: 500;">KDJ</div>
+                        <div style="color: #10b981;">J &lt; 20</div>
+                        <div>20 - 80</div>
+                        <div style="color: #ef4444;">J &gt; 80</div>
+
+                        <div style="font-weight: 500;">RSI</div>
+                        <div style="color: #10b981;">&lt; 30</div>
+                        <div>30 - 70</div>
+                        <div style="color: #ef4444;">&gt; 70</div>
+
+                        <div style="font-weight: 500;">MACD</div>
+                        <div style="color: #10b981;">DIF上穿DEA（金叉）</div>
+                        <div>-</div>
+                        <div style="color: #ef4444;">DIF下穿DEA（死叉）</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 支撑压力位 + 指标信号解读 并排 -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                <!-- 支撑压力位 -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-name">支撑位与压力位<span class="help-icon" data-tip="支撑位：股价下跌时可能反弹的价位，可考虑买入。压力位：股价上涨时可能回落的价位，可考虑卖出。">?</span></span>
+                    </div>
+                    <div v-if="chartData && chartData.support_resistance" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                        <!-- 支撑位 -->
+                        <div>
+                            <div style="font-size: 0.8rem; color: #10b981; font-weight: 600; margin-bottom: 6px;">支撑位</div>
+                            <div v-for="s in chartData.support_resistance.support" :key="s.price"
+                                 style="display: flex; justify-content: space-between; padding: 6px 8px; background: #ecfdf5; border-radius: 4px; margin-bottom: 4px; font-size: 0.8rem;">
+                                <span style="font-weight: 600; color: #059669;">¥{{ s.price }}</span>
+                                <span style="color: #6b7280; font-size: 0.7rem;">{{ s.type }}</span>
+                            </div>
+                            <div v-if="!chartData.support_resistance.support || chartData.support_resistance.support.length === 0"
+                                 style="color: var(--text-light); font-size: 0.8rem;">暂无</div>
+                        </div>
+                        <!-- 压力位 -->
+                        <div>
+                            <div style="font-size: 0.8rem; color: #ef4444; font-weight: 600; margin-bottom: 6px;">压力位</div>
+                            <div v-for="r in chartData.support_resistance.resistance" :key="r.price"
+                                 style="display: flex; justify-content: space-between; padding: 6px 8px; background: #fef2f2; border-radius: 4px; margin-bottom: 4px; font-size: 0.8rem;">
+                                <span style="font-weight: 600; color: #dc2626;">¥{{ r.price }}</span>
+                                <span style="color: #6b7280; font-size: 0.7rem;">{{ r.type }}</span>
+                            </div>
+                            <div v-if="!chartData.support_resistance.resistance || chartData.support_resistance.resistance.length === 0"
+                                 style="color: var(--text-light); font-size: 0.8rem;">暂无</div>
+                        </div>
+                    </div>
+                    <div v-else style="color: var(--text-light); text-align: center; padding: 20px;">加载中...</div>
+                </div>
+
+                <!-- 技术指标解读 -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-name">指标信号解读<span class="help-icon" data-tip="简单理解：&#10;• 看涨/多头 → 可考虑买入或持有&#10;• 看跌/空头 → 可考虑卖出或观望&#10;• 超买 → 涨太多了，可能回调&#10;• 超卖 → 跌太多了，可能反弹&#10;&#10;不同指标可能给出相反信号，这是正常的：&#10;• MACD看趋势方向（中期）&#10;• KDJ/RSI看超买超卖（短期）&#10;• 信号矛盾时，多数一致更可靠">?</span></span>
+                    </div>
+                    <div v-if="indicatorSignals" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 10px;">
+                        <div v-for="signal in indicatorSignals" :key="signal.name"
+                             style="padding: 8px 6px; background: var(--bg-secondary); border-radius: 6px; text-align: center;">
+                            <div style="font-weight: 600; font-size: 0.8rem;">{{ signal.name }}</div>
+                            <div :style="{color: signal.color, fontSize: '0.85rem', marginTop: '2px', fontWeight: '500'}">{{ signal.signal }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 风险排查 + 市场时机 并排 -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                <!-- 风险排查 -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-name">风险排查</span>
                         <span class="metric-status" :style="{background: result.risk_check.status_color === 'green' ? '#d1fae5' : '#fee2e2', color: result.risk_check.status_color === 'green' ? '#065f46' : '#991b1b'}">
                             {{ result.risk_check.status }}
                         </span>
                     </div>
-                    <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-primary);">
+                    <div style="margin-top: 8px; font-size: 0.8rem; color: var(--text-primary);">
                         {{ result.risk_check.suggestion }}
                     </div>
-                    <!-- 条件列表 -->
-                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
-                        <div v-for="(cond, idx) in result.risk_check.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color);">
+                        <div v-for="(cond, idx) in result.risk_check.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border-color); font-size: 0.8rem;">
                             <div>
-                                <span style="font-weight: 500; font-size: 0.85rem;">{{ cond.name }}</span>
-                                <span style="color: var(--text-light); font-size: 0.75rem; margin-left: 6px;">{{ cond.desc }}</span>
+                                <span style="font-weight: 500;">{{ cond.name }}</span>
+                                <span style="color: var(--text-light); font-size: 0.7rem; margin-left: 4px;">{{ cond.desc }}</span>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="font-size: 0.85rem; font-weight: 500;">{{ cond.value }}</span>
-                                <span :style="{color: cond.pass ? '#059669' : '#dc2626', fontSize: '0.8rem'}">{{ cond.pass ? '✓' : '✗' }}</span>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="font-weight: 500;">{{ cond.value }}</span>
+                                <span :style="{color: cond.pass ? '#059669' : '#dc2626'}">{{ cond.pass ? '✓' : '✗' }}</span>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- 市场时机 -->
-            <h3 class="section-title">市场时机</h3>
-            <div class="metrics-grid">
-                <div class="metric-card" style="grid-column: 1 / -1;">
+                <!-- 市场时机 -->
+                <div class="metric-card">
                     <div class="metric-header">
-                        <span class="metric-name">买入信号</span>
+                        <span class="metric-name">市场时机</span>
                         <span class="metric-status" :style="{background: result.market_timing.signal_color === 'green' ? '#d1fae5' : '#fef3c7', color: result.market_timing.signal_color === 'green' ? '#065f46' : '#92400e'}">
                             {{ result.market_timing.signal }}
                         </span>
                     </div>
-                    <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-primary);">
+                    <div style="margin-top: 8px; font-size: 0.8rem; color: var(--text-primary);">
                         {{ result.market_timing.suggestion }}
                     </div>
-                    <!-- 条件列表 -->
-                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
-                        <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 8px;">满足任一条件即可：</div>
-                        <div v-for="(cond, idx) in result.market_timing.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color);">
+                        <div style="font-size: 0.7rem; color: var(--text-light); margin-bottom: 6px;">满足任一条件即可：</div>
+                        <div v-for="(cond, idx) in result.market_timing.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border-color); font-size: 0.8rem;">
                             <div>
-                                <span style="font-weight: 500; font-size: 0.85rem;">{{ cond.name }}</span>
-                                <span style="color: var(--text-light); font-size: 0.75rem; margin-left: 6px;">{{ cond.desc }}</span>
+                                <span style="font-weight: 500;">{{ cond.name }}</span>
+                                <span style="color: var(--text-light); font-size: 0.7rem; margin-left: 4px;">{{ cond.desc }}</span>
                             </div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="font-size: 0.85rem; font-weight: 500;">{{ cond.value }}</span>
-                                <span :style="{color: cond.pass ? '#059669' : '#dc2626', fontSize: '0.8rem'}">{{ cond.pass ? '✓' : '✗' }}</span>
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span style="font-weight: 500;">{{ cond.value }}</span>
+                                <span :style="{color: cond.pass ? '#059669' : '#dc2626'}">{{ cond.pass ? '✓' : '✗' }}</span>
                             </div>
                         </div>
                     </div>
@@ -190,273 +596,285 @@
 
             <!-- 第一区域：好公司筛选 -->
             <h3 class="section-title">好公司筛选指标</h3>
-            <div class="metrics-grid">
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;">
                 <!-- 股息率 -->
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-name">股息率</span>
-                        <span class="metric-status" :style="{background: getStatusColor(result.dividend_analysis.yield_status.color), color: getStatusTextColor(result.dividend_analysis.yield_status.color)}">
+                <div class="metric-card" style="padding: 12px;">
+                    <div style="min-height: 56px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span class="metric-name" style="font-size: 0.85rem;">股息率<span class="help-icon" data-tip="股息率 = 每股分红 ÷ 股价 × 100%&#10;≥4%为优秀，2%-4%为良好">?</span></span>
+                        </div>
+                        <span class="metric-status" :style="{background: getStatusColor(result.dividend_analysis.yield_status.color), color: getStatusTextColor(result.dividend_analysis.yield_status.color), fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
                             {{ result.dividend_analysis.yield_status.status }}
                         </span>
                     </div>
-                    <div class="metric-value">{{ formatNumber(result.dividend_analysis.dividend_yield, 2) }}%</div>
-                    <div class="metric-detail">
-                        最新分红：{{ formatNumber(result.dividend_analysis.latest_cash_dividend, 3) }}元/股
-                        <br>连续分红：{{ result.dividend_analysis.continuous_years }}年
+                    <div class="metric-value" style="font-size: 1.1rem; margin-top: 4px;">{{ formatNumber(result.dividend_analysis.dividend_yield, 2) }}%</div>
+                    <div style="font-size: 0.75rem; color: var(--text-light); margin-top: 2px;">连续分红{{ result.dividend_analysis.continuous_years }}年</div>
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); min-height: 100px;">
+                        <div v-for="div in result.dividend_analysis.dividend_history" :key="div.year" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border-color);">
+                            <span>{{ div.year }}</span>
+                            <span>{{ formatNumber(div.cash_dividend, 3) }}元</span>
+                        </div>
                     </div>
-                    <div class="metric-standard">参考：优秀>4%，良好>2%</div>
-                    <ul class="metric-list" v-if="result.dividend_analysis.dividend_history">
-                        <li v-for="div in result.dividend_analysis.dividend_history" :key="div.year">
-                            <span>{{ div.year }}年</span>
-                            <span>{{ formatNumber(div.cash_dividend, 3) }}元/股</span>
-                        </li>
-                    </ul>
                 </div>
 
                 <!-- 派息率 -->
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-name">派息率</span>
-                        <span class="metric-status" :class="result.payout_analysis.color">
+                <div class="metric-card" style="padding: 12px;">
+                    <div style="min-height: 56px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span class="metric-name" style="font-size: 0.85rem;">派息率<span class="help-icon" data-tip="派息率 = 每股分红 ÷ 每股收益&#10;30%-70%为合理区间">?</span></span>
+                        </div>
+                        <span class="metric-status" :class="result.payout_analysis.color" style="font-size: 0.7rem; padding: 2px 6px; margin-top: 4px; display: inline-block;">
                             {{ result.payout_analysis.status }}
                         </span>
                     </div>
-                    <div class="metric-value">{{ result.payout_analysis.payout_ratio }}%</div>
-                    <div class="metric-detail">
-                        每股收益：{{ result.payout_analysis.eps }}元
-                        <br>每股分红：{{ formatNumber(result.payout_analysis.cash_dividend, 3) }}元
-                    </div>
-                    <div class="metric-standard">参考：合理30%-70%</div>
-                    <!-- 5年历史数据 -->
-                    <ul class="metric-list" v-if="result.payout_analysis.payout_history">
-                        <li v-for="item in result.payout_analysis.payout_history" :key="item.year">
-                            <span>{{ item.year }}年</span>
+                    <div class="metric-value" style="font-size: 1.1rem; margin-top: 4px;">{{ result.payout_analysis.payout_ratio }}%</div>
+                    <div style="font-size: 0.75rem; color: var(--text-light); margin-top: 2px;">合理区间30-70%</div>
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); min-height: 100px;">
+                        <div v-for="item in result.payout_analysis.payout_history" :key="item.year" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border-color);">
+                            <span>{{ item.year }}</span>
                             <span>{{ item.payout_ratio }}%</span>
-                        </li>
-                    </ul>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 盈利质量 -->
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-name">盈利质量</span>
-                        <span class="metric-status" :class="result.profit_analysis.color">
+                <div class="metric-card" style="padding: 12px;">
+                    <div style="min-height: 56px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span class="metric-name" style="font-size: 0.85rem;">盈利质量<span class="help-icon" data-tip="ROE = 净利润 ÷ 净资产&#10;>15%卓越，>10%优秀">?</span></span>
+                        </div>
+                        <span class="metric-status" :class="result.profit_analysis.color" style="font-size: 0.7rem; padding: 2px 6px; margin-top: 4px; display: inline-block;">
                             {{ result.profit_analysis.roe_status }}
                         </span>
                     </div>
-                    <div class="metric-value">{{ result.profit_analysis.avg_roe }}%</div>
-                    <div class="metric-detail">
-                        净利润为正：{{ result.profit_analysis.net_profit_positive ? '是' : '否' }}
+                    <div class="metric-value" style="font-size: 1.1rem; margin-top: 4px;">{{ result.profit_analysis.avg_roe }}%</div>
+                    <div style="font-size: 0.7rem; margin-top: 2px;">
+                        <span :style="{color: result.profit_analysis.revenue_cagr > 0 ? '#10b981' : '#ef4444'}">营收{{ result.profit_analysis.revenue_cagr ? result.profit_analysis.revenue_cagr + '%' : '-' }}</span>
+                        <span style="color: var(--text-light); margin: 0 2px;">|</span>
+                        <span :style="{color: result.profit_analysis.profit_cagr > 0 ? '#10b981' : '#ef4444'}">利润{{ result.profit_analysis.profit_cagr ? result.profit_analysis.profit_cagr + '%' : '-' }}</span>
                     </div>
-                    <!-- 增长率指标 -->
-                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color);">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                            <span style="color: var(--text-light); font-size: 0.8rem;">营收增长率(CAGR)</span>
-                            <span :style="{color: result.profit_analysis.revenue_cagr && result.profit_analysis.revenue_cagr > 0 ? '#059669' : '#dc2626', fontWeight: '500', fontSize: '0.85rem'}">
-                                {{ result.profit_analysis.revenue_cagr ? result.profit_analysis.revenue_cagr + '%' : '-' }}
-                            </span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span style="color: var(--text-light); font-size: 0.8rem;">净利润增长率(CAGR)</span>
-                            <span :style="{color: result.profit_analysis.profit_cagr && result.profit_analysis.profit_cagr > 0 ? '#059669' : '#dc2626', fontWeight: '500', fontSize: '0.85rem'}">
-                                {{ result.profit_analysis.profit_cagr ? result.profit_analysis.profit_cagr + '%' : '-' }}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="metric-standard">参考：优秀>10%，卓越>15%</div>
-                    <!-- 5年ROE历史 -->
-                    <ul class="metric-list" v-if="result.profit_analysis.roe_history">
-                        <li v-for="item in result.profit_analysis.roe_history" :key="item.year">
-                            <span>{{ item.year }}年ROE</span>
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); min-height: 100px;">
+                        <div v-for="item in result.profit_analysis.roe_history" :key="item.year" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border-color);">
+                            <span>{{ item.year }}ROE</span>
                             <span>{{ item.roe }}%</span>
-                        </li>
-                    </ul>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 现金流 -->
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-name">现金流健康度</span>
-                        <span class="metric-status" :class="result.cashflow_analysis.color">
+                <div class="metric-card" style="padding: 12px;">
+                    <div style="min-height: 56px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span class="metric-name" style="font-size: 0.85rem;">现金流<span class="help-icon" data-tip="经营现金流为正说明公司造血能力强&#10;现金流/净利润>1质量高">?</span></span>
+                        </div>
+                        <span class="metric-status" :class="result.cashflow_analysis.color" style="font-size: 0.7rem; padding: 2px 6px; margin-top: 4px; display: inline-block;">
                             {{ result.cashflow_analysis.status }}
                         </span>
                     </div>
-                    <div class="metric-value">{{ result.cashflow_analysis.all_positive ? '健康' : '异常' }}</div>
-                    <div class="metric-detail">
-                        完全覆盖净利润：{{ result.cashflow_analysis.cash_covered && result.cashflow_analysis.cash_covered.every(c => c) ? '是' : '部分' }}
+                    <div class="metric-value" style="font-size: 1.1rem; margin-top: 4px;">{{ result.cashflow_analysis.all_positive ? '健康' : '异常' }}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-light); margin-top: 2px;">{{ result.cashflow_analysis.cash_covered && result.cashflow_analysis.cash_covered.every(c => c) ? '覆盖净利润' : '部分覆盖' }}</div>
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); min-height: 100px;">
+                        <div v-for="item in result.cashflow_analysis.cashflow_history" :key="item.year" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border-color);">
+                            <span>{{ item.year }}</span>
+                            <span :style="{color: item.cash_covered ? '#10b981' : '#ef4444'}">{{ item.operating_cash_flow }}亿</span>
+                        </div>
                     </div>
-                    <div class="metric-standard">参考：经营现金流为正</div>
-                    <!-- 5年现金流历史 -->
-                    <ul class="metric-list" v-if="result.cashflow_analysis.cashflow_history">
-                        <li v-for="item in result.cashflow_analysis.cashflow_history" :key="item.year">
-                            <span>{{ item.year }}年</span>
-                            <span :style="{color: item.cash_covered ? '#10b981' : '#ef4444'}">
-                                {{ item.operating_cash_flow }}亿
-                            </span>
-                        </li>
-                    </ul>
                 </div>
 
                 <!-- 资产负债率 -->
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-name">资产负债率</span>
-                        <span class="metric-status" :class="result.debt_analysis.color">
+                <div class="metric-card" style="padding: 12px;">
+                    <div style="min-height: 56px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span class="metric-name" style="font-size: 0.85rem;">负债率<span class="help-icon" data-tip="资产负债率 = 总负债 ÷ 总资产&#10;<40%优秀，<60%良好">?</span></span>
+                        </div>
+                        <span class="metric-status" :class="result.debt_analysis.color" style="font-size: 0.7rem; padding: 2px 6px; margin-top: 4px; display: inline-block;">
                             {{ result.debt_analysis.status }}
                         </span>
                     </div>
-                    <div class="metric-value">{{ result.debt_analysis.debt_ratio }}%</div>
-                    <div class="metric-detail">
-                        理想值：&lt;60%
-                    </div>
-                    <div class="metric-standard">参考：优秀<40%，良好<60%</div>
-                    <!-- 5年资产负债率历史 -->
-                    <ul class="metric-list" v-if="result.debt_analysis.debt_history">
-                        <li v-for="item in result.debt_analysis.debt_history" :key="item.year">
-                            <span>{{ item.year }}年</span>
+                    <div class="metric-value" style="font-size: 1.1rem; margin-top: 4px;">{{ result.debt_analysis.debt_ratio }}%</div>
+                    <div style="font-size: 0.75rem; color: var(--text-light); margin-top: 2px;">理想值&lt;60%</div>
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); min-height: 100px;">
+                        <div v-for="item in result.debt_analysis.debt_history" :key="item.year" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border-color);">
+                            <span>{{ item.year }}</span>
                             <span>{{ item.debt_ratio }}%</span>
-                        </li>
-                    </ul>
+                        </div>
+                    </div>
                 </div>
+            </div>
             </div>
 
             <!-- 第二区域：估值分析 -->
             <h3 class="section-title">估值分析</h3>
-            <div class="metrics-grid">
-                <!-- 估值状态 -->
-                <div class="metric-card" style="grid-column: 1 / -1;">
-                    <div class="metric-header">
-                        <span class="metric-name">估值结论</span>
-                        <span class="metric-status" :style="{background: result.valuation_analysis.valuation_color === 'green' ? '#d1fae5' : '#fee2e2', color: result.valuation_analysis.valuation_color === 'green' ? '#065f46' : '#991b1b'}">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                <!-- 估值结论 -->
+                <div class="metric-card" style="padding: 12px;">
+                    <div class="metric-header" style="display: block; margin-bottom: 6px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span class="metric-name" style="font-size: 0.85rem;">估值结论<span class="help-icon" data-tip="满足任一条件即估值合理：PE<行业平均或PB<行业平均或PE分位数<30%">?</span></span>
+                        </div>
+                        <span class="metric-status" :style="{background: result.valuation_analysis.valuation_color === 'green' ? '#d1fae5' : '#fee2e2', color: result.valuation_analysis.valuation_color === 'green' ? '#065f46' : '#991b1b', fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
                             {{ result.valuation_analysis.valuation_status }}
                         </span>
                     </div>
-                    <div style="margin-top: 10px; font-size: 0.85rem; color: var(--text-primary);">
-                        {{ result.valuation_analysis.valuation_suggestion }}
-                    </div>
-                    <!-- 历史数据提示 -->
-                    <div v-if="result.valuation_analysis.history_note" style="margin-top: 10px; padding: 8px; background: #fef3c7; border-radius: 6px; font-size: 0.75rem; color: #92400e;">
-                        {{ result.valuation_analysis.history_note }}
-                    </div>
-                    <!-- 条件列表 -->
-                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
-                        <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 8px;">满足任一条件即估值合理：</div>
-                        <div v-for="(cond, idx) in result.valuation_analysis.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-color);">
-                            <div>
-                                <span style="font-weight: 500; font-size: 0.85rem;">{{ cond.name }}</span>
-                                <span style="color: var(--text-light); font-size: 0.75rem; margin-left: 6px;">{{ cond.desc }}</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span style="font-size: 0.8rem; color: var(--text-light);">{{ cond.value }}</span>
-                                <span :style="{color: cond.pass ? '#059669' : '#dc2626', fontSize: '0.8rem'}">{{ cond.pass ? '✓' : '✗' }}</span>
-                            </div>
+                    <div style="font-size: 0.8rem; color: var(--text-primary); margin-top: 8px;">{{ result.valuation_analysis.valuation_suggestion }}</div>
+                    <div v-if="result.valuation_analysis.history_note" style="margin-top: 8px; padding: 6px; background: #fef3c7; border-radius: 4px; font-size: 0.7rem; color: #92400e;">{{ result.valuation_analysis.history_note }}</div>
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color);">
+                        <div v-for="(cond, idx) in result.valuation_analysis.conditions" :key="idx" style="display: flex; justify-content: space-between; font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border-color);">
+                            <span>{{ cond.name }}</span>
+                            <span :style="{color: cond.pass ? '#059669' : '#dc2626'}">{{ cond.pass ? '✓' : '✗' }}</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- PE估值 -->
-                <div class="valuation-card">
-                    <div class="valuation-header">
-                        <span class="valuation-title">市盈率 (PE-TTM)</span>
-                    </div>
-                    <div class="valuation-value">{{ formatValue(result.valuation_analysis.pe_ttm) }}</div>
-                    <div class="valuation-percentile" v-if="result.valuation_analysis.pe_percentile">
-                        <div class="percentile-bar">
-                            <div class="percentile-fill" :class="getPercentileClass(result.valuation_analysis.pe_percentile)" :style="{width: result.valuation_analysis.pe_percentile + '%'}"></div>
+                <div class="metric-card" style="padding: 12px;">
+                    <div class="metric-header" style="display: block; margin-bottom: 6px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span class="metric-name" style="font-size: 0.85rem;">市盈率 PE<span class="help-icon" data-tip="PE = 股价 ÷ 每股收益&#10;表示回本年数，越低越便宜&#10;分位数<30%为低估">?</span></span>
                         </div>
-                        <span class="percentile-text">{{ result.valuation_analysis.pe_percentile }}%分位</span>
+                        <span :style="{color: result.valuation_analysis.pe_percentile < 30 ? '#10b981' : result.valuation_analysis.pe_percentile < 70 ? '#f59e0b' : '#ef4444', fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
+                            {{ result.valuation_analysis.pe_valuation.status }}
+                        </span>
                     </div>
-                    <p style="font-size: 0.85rem; color: var(--text-light); margin-top: 8px;">
-                        {{ result.valuation_analysis.pe_valuation.status }}
-                    </p>
-                    <div v-if="result.valuation_analysis.pe_formula" style="margin-top: 10px; padding: 8px; background: var(--bg-secondary); border-radius: 6px; font-size: 0.75rem; color: var(--text-light);">
-                        <div style="white-space: pre-line; line-height: 1.6;">{{ result.valuation_analysis.pe_formula }}</div>
-                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-color);">
-                            {{ result.valuation_analysis.pe_standard.description }}<br>
-                            <span style="color: #4ade80;">{{ result.valuation_analysis.pe_standard.good }}</span> ·
-                            <span style="color: #fbbf24;">{{ result.valuation_analysis.pe_standard.normal }}</span> ·
-                            <span style="color: #f87171;">{{ result.valuation_analysis.pe_standard.high }}</span>
+                    <div class="metric-value" style="font-size: 1.1rem;">{{ formatValue(result.valuation_analysis.pe_ttm) }}</div>
+                    <div style="margin-top: 4px;" v-if="result.valuation_analysis.pe_percentile">
+                        <div class="percentile-bar" style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                            <div :class="getPercentileClass(result.valuation_analysis.pe_percentile)" :style="{width: result.valuation_analysis.pe_percentile + '%', height: '100%', background: result.valuation_analysis.pe_percentile < 30 ? '#10b981' : result.valuation_analysis.pe_percentile < 70 ? '#f59e0b' : '#ef4444'}"></div>
+                        </div>
+                        <span style="font-size: 0.75rem; color: var(--text-light);">{{ result.valuation_analysis.pe_percentile }}%分位</span>
+                    </div>
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); font-size: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; padding: 3px 0;">
+                            <span style="color: var(--text-light);">行业平均</span>
+                            <span>{{ result.valuation_analysis.industry_pe }}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 3px 0; align-items: center;">
+                            <span style="color: var(--text-light);">对比</span>
+                            <span :style="{color: result.valuation_analysis.pe_ttm < result.valuation_analysis.industry_pe ? '#10b981' : '#ef4444', textAlign: 'right'}">
+                                {{ result.valuation_analysis.pe_ttm < result.valuation_analysis.industry_pe ? '相对低估（回本更快）' : '相对高估（回本更慢）' }}
+                            </span>
                         </div>
                     </div>
                 </div>
 
                 <!-- PB估值 -->
-                <div class="valuation-card">
-                    <div class="valuation-header">
-                        <span class="valuation-title">市净率 (PB)</span>
-                    </div>
-                    <div class="valuation-value">{{ formatValue(result.valuation_analysis.pb) }}</div>
-                    <div class="valuation-percentile" v-if="result.valuation_analysis.pb_percentile">
-                        <div class="percentile-bar">
-                            <div class="percentile-fill" :class="getPercentileClass(result.valuation_analysis.pb_percentile)" :style="{width: result.valuation_analysis.pb_percentile + '%'}"></div>
+                <div class="metric-card" style="padding: 12px;">
+                    <div class="metric-header" style="display: block; margin-bottom: 6px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span class="metric-name" style="font-size: 0.85rem;">市净率 PB<span class="help-icon" data-tip="PB = 股价 ÷ 每股净资产&#10;PB<1为破净，可能被低估&#10;分位数<30%为低估">?</span></span>
                         </div>
-                        <span class="percentile-text">{{ result.valuation_analysis.pb_percentile }}%分位</span>
+                        <span :style="{color: result.valuation_analysis.pb_percentile < 30 ? '#10b981' : result.valuation_analysis.pb_percentile < 70 ? '#f59e0b' : '#ef4444', fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
+                            {{ result.valuation_analysis.pb_valuation.status }}
+                        </span>
                     </div>
-                    <p style="font-size: 0.85rem; color: var(--text-light); margin-top: 8px;">
-                        {{ result.valuation_analysis.pb_valuation.status }}
-                    </p>
-                    <div v-if="result.valuation_analysis.pb_formula" style="margin-top: 10px; padding: 8px; background: var(--bg-secondary); border-radius: 6px; font-size: 0.75rem; color: var(--text-light);">
-                        <div style="white-space: pre-line; line-height: 1.6;">{{ result.valuation_analysis.pb_formula }}</div>
-                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-color);">
-                            {{ result.valuation_analysis.pb_standard.description }}<br>
-                            <span style="color: #4ade80;">{{ result.valuation_analysis.pb_standard.good }}</span> ·
-                            <span style="color: #fbbf24;">{{ result.valuation_analysis.pb_standard.normal }}</span> ·
-                            <span style="color: #f87171;">{{ result.valuation_analysis.pb_standard.high }}</span>
+                    <div class="metric-value" style="font-size: 1.1rem;">{{ formatValue(result.valuation_analysis.pb) }}</div>
+                    <div style="margin-top: 4px;" v-if="result.valuation_analysis.pb_percentile">
+                        <div class="percentile-bar" style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                            <div :style="{width: result.valuation_analysis.pb_percentile + '%', height: '100%', background: result.valuation_analysis.pb_percentile < 30 ? '#10b981' : result.valuation_analysis.pb_percentile < 70 ? '#f59e0b' : '#ef4444'}"></div>
                         </div>
+                        <span style="font-size: 0.75rem; color: var(--text-light);">{{ result.valuation_analysis.pb_percentile }}%分位</span>
                     </div>
-                </div>
-            </div>
-
-            <!-- 行业对比 -->
-            <div class="valuation-card" style="margin-top: 16px;">
-                <div class="valuation-header">
-                    <span class="valuation-title">与行业对比</span>
-                </div>
-                <table class="comparison-table">
-                    <thead>
-                        <tr>
-                            <th>指标</th>
-                            <th>公司当前值</th>
-                            <th>行业平均</th>
-                            <th>对比</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>市盈率 (PE)</td>
-                            <td>{{ formatValue(result.valuation_analysis.pe_ttm) }}</td>
-                            <td>{{ result.valuation_analysis.industry_pe }}</td>
-                            <td v-if="result.valuation_analysis.pe_ttm" :class="result.valuation_analysis.pe_ttm < result.valuation_analysis.industry_pe ? 'better' : 'worse'">
-                                {{ result.valuation_analysis.pe_ttm < result.valuation_analysis.industry_pe ? '相对低估（回本更快）' : '相对高估（回本更慢）' }}
-                            </td>
-                            <td v-else>-</td>
-                        </tr>
-                        <tr>
-                            <td>市净率 (PB)</td>
-                            <td>{{ formatValue(result.valuation_analysis.pb) }}</td>
-                            <td>{{ result.valuation_analysis.industry_pb }}</td>
-                            <td v-if="result.valuation_analysis.pb" :class="result.valuation_analysis.pb < result.valuation_analysis.industry_pb ? 'better' : 'worse'">
+                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); font-size: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; padding: 3px 0;">
+                            <span style="color: var(--text-light);">行业平均</span>
+                            <span>{{ result.valuation_analysis.industry_pb }}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; padding: 3px 0; align-items: center;">
+                            <span style="color: var(--text-light);">对比</span>
+                            <span :style="{color: result.valuation_analysis.pb < result.valuation_analysis.industry_pb ? '#10b981' : '#ef4444', textAlign: 'right'}">
                                 {{ result.valuation_analysis.pb < result.valuation_analysis.industry_pb ? '相对低估（溢价低）' : '相对高估（溢价高）' }}
-                            </td>
-                            <td v-else>-</td>
-                        </tr>
-                    </tbody>
-                </table>
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
 
-        <!-- 空状态 -->
-        <div v-if="!result && !loading && !error" class="empty-state">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-            </svg>
-            <p>请输入股票代码开始分析</p>
+            <!-- 同行业对比 -->
+            <div v-if="industryData && industryData.peer_stocks && industryData.peer_stocks.length > 0" style="margin-top: 16px;">
+                <h3 class="section-title">
+                    同行业对比
+                    <span class="help-icon" data-tip="对比同行业公司的关键指标，帮助判断估值是否合理。&#10;绿色数值表示优于行业平均，红色表示劣于行业平均。">?</span>
+                </h3>
+                <div class="metric-card" style="padding: 12px; overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                        <thead>
+                            <tr style="background: var(--bg-secondary);">
+                                <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--border-color);">股票</th>
+                                <th style="padding: 8px; text-align: center; border-bottom: 2px solid var(--border-color);">股息率</th>
+                                <th style="padding: 8px; text-align: center; border-bottom: 2px solid var(--border-color);">PE</th>
+                                <th style="padding: 8px; text-align: center; border-bottom: 2px solid var(--border-color);">PB</th>
+                                <th style="padding: 8px; text-align: center; border-bottom: 2px solid var(--border-color);">ROE</th>
+                                <th style="padding: 8px; text-align: center; border-bottom: 2px solid var(--border-color);">负债率</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- 当前股票 -->
+                            <tr v-if="industryData.current_stock" style="background: #eff6ff;">
+                                <td style="padding: 8px; border-bottom: 1px solid var(--border-color);">
+                                    <a :href="'analyze.html?code=' + industryData.current_stock.code" style="color: #2563eb; text-decoration: none; font-weight: 600;">
+                                        {{ industryData.current_stock.name }}
+                                    </a>
+                                    <span style="color: var(--text-light); font-size: 0.7rem; margin-left: 4px;">{{ industryData.current_stock.code }}</span>
+                                </td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);" :style="{color: getColorVsAvg(industryData.current_stock.dividend_yield, industryData.industry_avg?.dividend_yield, true)}">
+                                    {{ industryData.current_stock.dividend_yield || '-' }}%
+                                </td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);" :style="{color: getColorVsAvg(industryData.current_stock.pe, industryData.industry_avg?.pe, false)}">
+                                    {{ industryData.current_stock.pe || '-' }}
+                                </td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);" :style="{color: getColorVsAvg(industryData.current_stock.pb, industryData.industry_avg?.pb, false)}">
+                                    {{ industryData.current_stock.pb || '-' }}
+                                </td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);" :style="{color: getColorVsAvg(industryData.current_stock.roe, industryData.industry_avg?.roe, true)}">
+                                    {{ industryData.current_stock.roe || '-' }}%
+                                </td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);" :style="{color: getColorVsAvg(industryData.current_stock.debt_ratio, industryData.industry_avg?.debt_ratio, false)}">
+                                    {{ industryData.current_stock.debt_ratio || '-' }}%
+                                </td>
+                            </tr>
+                            <!-- 同行股票 -->
+                            <tr v-for="stock in industryData.peer_stocks" :key="stock.code">
+                                <td style="padding: 8px; border-bottom: 1px solid var(--border-color);">
+                                    <a :href="'analyze.html?code=' + stock.code" style="color: #3b82f6; text-decoration: none;">
+                                        {{ stock.name }}
+                                    </a>
+                                    <span style="color: var(--text-light); font-size: 0.7rem; margin-left: 4px;">{{ stock.code }}</span>
+                                </td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);" :style="{color: getColorVsAvg(stock.dividend_yield, industryData.industry_avg?.dividend_yield, true)}">
+                                    {{ stock.dividend_yield || '-' }}%
+                                </td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);" :style="{color: getColorVsAvg(stock.pe, industryData.industry_avg?.pe, false)}">
+                                    {{ stock.pe || '-' }}
+                                </td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);" :style="{color: getColorVsAvg(stock.pb, industryData.industry_avg?.pb, false)}">
+                                    {{ stock.pb || '-' }}
+                                </td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);" :style="{color: getColorVsAvg(stock.roe, industryData.industry_avg?.roe, true)}">
+                                    {{ stock.roe || '-' }}%
+                                </td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);" :style="{color: getColorVsAvg(stock.debt_ratio, industryData.industry_avg?.debt_ratio, false)}">
+                                    {{ stock.debt_ratio || '-' }}%
+                                </td>
+                            </tr>
+                            <!-- 行业平均 -->
+                            <tr v-if="industryData.industry_avg" style="background: #f8fafc; font-weight: 500;">
+                                <td style="padding: 8px; border-bottom: 1px solid var(--border-color); color: #6b7280;">行业平均</td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);">{{ industryData.industry_avg.dividend_yield || '-' }}%</td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);">{{ industryData.industry_avg.pe || '-' }}</td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);">{{ industryData.industry_avg.pb || '-' }}</td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);">{{ industryData.industry_avg.roe || '-' }}%</td>
+                                <td style="padding: 8px; text-align: center; border-bottom: 1px solid var(--border-color);">{{ industryData.industry_avg.debt_ratio || '-' }}%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         const API_BASE = 'http://localhost:8000';
-        const { createApp, ref, onMounted } = Vue;
+        const { createApp, ref, onMounted, nextTick } = Vue;
 
         createApp({
             setup() {
@@ -523,6 +941,19 @@
                         error.value = err.message || '网络错误，请稍后重试';
                     } finally {
                         loading.value = false;
+                    }
+
+                    // 等待 DOM 更新完成后再加载K线图表
+                    // 因为 #kline-chart 元素由 v-if="result && !loading" 控制
+                    await nextTick();
+                    if (result.value) {
+                        await loadChart('daily');
+                        // 加载同行业对比数据
+                        await loadIndustryData(code);
+                        // 加载趋势分析和资金流向
+                        await loadTrendAndFlow(code);
+                        // 加载公司概况
+                        await loadCompanyProfile(code);
                     }
                 };
 
@@ -596,6 +1027,606 @@
                     return Number(value).toFixed(decimals);
                 };
 
+                // 格式化金额，添加千位分隔符
+                const formatMoney = (value, decimals = 0) => {
+                    if (value === null || value === undefined || value === 0) return '-';
+                    const num = Number(value);
+                    const fixed = num.toFixed(decimals);
+                    const parts = fixed.split('.');
+                    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                    return parts.join('.');
+                };
+
+                // ========== K线图表相关 ==========
+                const chartData = ref(null);
+                const chartPeriod = ref('daily');
+                const activeIndicators = ref(['ma']);  // 默认显示均线
+                const indicatorSignals = ref([]);
+                let chartInstance = null;
+
+                // ========== 同行业对比 ==========
+                const industryData = ref(null);
+                const companyProfile = ref(null);
+                const showCompanyProfile = ref(true);
+
+                const loadCompanyProfile = async (stockCode) => {
+                    try {
+                        const response = await fetchWithTimeout(`${API_BASE}/api/company/${stockCode}`, {}, 10000);
+                        const data = await response.json();
+                        if (data.success) {
+                            companyProfile.value = data.data;
+                        }
+                    } catch (err) {
+                        console.error('加载公司概况失败:', err);
+                    }
+                };
+
+                const loadIndustryData = async (stockCode) => {
+                    try {
+                        const response = await fetchWithTimeout(`${API_BASE}/api/industry/${stockCode}`, {}, 10000);
+                        const data = await response.json();
+                        industryData.value = data;
+                    } catch (err) {
+                        console.error('加载同行业对比失败:', err);
+                    }
+                };
+
+                const getColorVsAvg = (value, avg, higherIsBetter) => {
+                    if (!value || !avg) return 'inherit';
+                    if (higherIsBetter) {
+                        return value >= avg ? '#10b981' : '#ef4444';
+                    } else {
+                        return value <= avg ? '#10b981' : '#ef4444';
+                    }
+                };
+
+                // 获取评级对应的CSS类名
+                const getRatingClass = (rating) => {
+                    if (!rating) return '';
+                    const classMap = {
+                        'A+': 'a-plus',
+                        'A': 'a',
+                        'B+': 'b-plus',
+                        'B': 'b',
+                        'C': 'c',
+                        'D': 'd'
+                    };
+                    return classMap[rating] || rating.toLowerCase();
+                };
+
+                // 获取分数对应的颜色
+                const getScoreColor = (score) => {
+                    if (score >= 80) return '#10b981';
+                    if (score >= 60) return '#3b82f6';
+                    if (score >= 40) return '#f59e0b';
+                    return '#ef4444';
+                };
+
+                // 获取分数渐变色
+                const getScoreGradient = (score) => {
+                    if (score >= 80) return { start: '#10b981', end: '#059669' };
+                    if (score >= 60) return { start: '#3b82f6', end: '#6366f1' };
+                    if (score >= 40) return { start: '#f59e0b', end: '#f97316' };
+                    return { start: '#ef4444', end: '#dc2626' };
+                };
+
+                // 获取分数圆环的dash值
+                // 圆半径r=52，周长 = 2π×52 ≈ 326.73
+                const getScoreDash = (score) => {
+                    const circumference = 2 * Math.PI * 52; // 326.73
+                    const dashLength = (score / 100) * circumference;
+                    return dashLength + ' ' + circumference;
+                };
+
+                // 获取评级背景色
+                const getRatingBg = (rating) => {
+                    if (rating === 'A+' || rating === 'A') return '#d1fae5';
+                    if (rating === 'B+' || rating === 'B') return '#dbeafe';
+                    if (rating === 'C') return '#fef3c7';
+                    return '#fee2e2';
+                };
+
+                // 获取评级文字颜色
+                const getRatingTextColor = (rating) => {
+                    if (rating === 'A+' || rating === 'A') return '#065f46';
+                    if (rating === 'B+' || rating === 'B') return '#1e40af';
+                    if (rating === 'C') return '#92400e';
+                    return '#991b1b';
+                };
+
+                // ========== 趋势与资金流向 ==========
+                const trendData = ref(null);
+                const moneyFlowData = ref(null);
+                const trendError = ref(false);
+                const moneyFlowError = ref(false);
+
+                const loadTrendAndFlow = async (stockCode) => {
+                    // 加载趋势数据
+                    trendError.value = false;
+                    try {
+                        const response = await fetchWithTimeout(`${API_BASE}/api/market/trend/${stockCode}`, {}, 10000);
+                        const data = await response.json();
+                        if (data.success) {
+                            trendData.value = data.data;
+                        } else {
+                            trendError.value = true;
+                        }
+                    } catch (err) {
+                        console.error('加载趋势分析失败:', err);
+                        trendError.value = true;
+                    }
+
+                    // 加载资金流向
+                    moneyFlowError.value = false;
+                    try {
+                        const response = await fetchWithTimeout(`${API_BASE}/api/market/moneyflow/${stockCode}`, {}, 10000);
+                        const data = await response.json();
+                        if (data.success) {
+                            moneyFlowData.value = data.data;
+                        } else {
+                            moneyFlowError.value = true;
+                        }
+                    } catch (err) {
+                        console.error('加载资金流向失败:', err);
+                        moneyFlowError.value = true;
+                    }
+                };
+
+                // 加载K线数据
+                const loadChart = async (period) => {
+                    chartPeriod.value = period;
+                    if (!result.value) return;
+
+                    try {
+                        const response = await fetchWithTimeout(
+                            `${API_BASE}/api/chart/${result.value.stock_code}?period=${period}&limit=120`,
+                            {}, 15000
+                        );
+                        const data = await response.json();
+                        if (data.success) {
+                            chartData.value = data;
+                            renderChart();
+                            generateSignals();
+                        }
+                    } catch (err) {
+                        console.error('加载K线失败:', err);
+                    }
+                };
+
+                // 切换指标显示
+                const toggleIndicator = (indicator) => {
+                    const idx = activeIndicators.value.indexOf(indicator);
+                    if (idx > -1) {
+                        activeIndicators.value.splice(idx, 1);
+                    } else {
+                        activeIndicators.value.push(indicator);
+                    }
+                    if (chartData.value) {
+                        renderChart();
+                    }
+                };
+
+                // 渲染K线图表
+                const renderChart = () => {
+                    if (!chartData.value || !chartData.value.kline) return;
+
+                    const chartDom = document.getElementById('kline-chart');
+                    if (!chartDom) return;
+
+                    if (chartInstance) {
+                        chartInstance.dispose();
+                    }
+
+                    chartInstance = echarts.init(chartDom);
+
+                    const kline = chartData.value.kline;
+                    const indicators = chartData.value.indicators;
+
+                    // 准备数据
+                    const dates = kline.map(d => d.date);
+                    const ohlc = kline.map(d => [d.open, d.close, d.low, d.high]);
+                    const volumes = kline.map(d => d.volume);
+
+                    // 图表配置
+                    const option = {
+                        tooltip: {
+                            trigger: 'axis',
+                            axisPointer: { type: 'cross' },
+                            formatter: function(params) {
+                                const data = params[0];
+                                const idx = data.dataIndex;
+                                const k = kline[idx];
+                                const volWan = (k.volume / 10000).toFixed(0);
+                                const volYi = (k.volume / 100000000).toFixed(2);
+                                const volStr = k.volume >= 100000000 ? volYi + '亿股' : volWan + '万股';
+                                const amtWan = (k.amount / 10000).toFixed(0);
+                                const amtYi = (k.amount / 100000000).toFixed(2);
+                                const amtStr = k.amount >= 100000000 ? amtYi + '亿' : amtWan + '万';
+                                return `
+                                    <div style="font-size:12px;">
+                                        <div style="font-weight:600;margin-bottom:4px;">${k.date}</div>
+                                        <div>开盘: ${k.open} | 收盘: ${k.close}</div>
+                                        <div>最高: ${k.high} | 最低: ${k.low}</div>
+                                        <div>成交量: ${volStr}</div>
+                                        <div>成交额: ${amtStr}元</div>
+                                        <div style="color:${k.close >= k.open ? '#ef4444' : '#22c55e'}">
+                                            涨跌: ${k.change_pct ? k.change_pct.toFixed(2) : 0}%
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                        },
+                        legend: {
+                            data: ['K线', 'MA5', 'MA10', 'MA20', 'MA60', 'BOLL'],
+                            bottom: 0
+                        },
+                        grid: [
+                            { left: '8%', right: '3%', top: '5%', height: '45%' },
+                            { left: '8%', right: '3%', top: '55%', height: '12%' }
+                        ],
+                        xAxis: [
+                            { type: 'category', data: dates, gridIndex: 0, axisLabel: { fontSize: 10 } },
+                            { type: 'category', data: dates, gridIndex: 1, axisLabel: { show: false } }
+                        ],
+                        yAxis: [
+                            { scale: true, gridIndex: 0, splitLine: { lineStyle: { type: 'dashed' } } },
+                            {
+                                scale: true,
+                                gridIndex: 1,
+                                splitLine: { show: false },
+                                axisLabel: {
+                                    fontSize: 10,
+                                    formatter: function(value) {
+                                        if (value >= 100000000) {
+                                            return (value / 100000000).toFixed(1) + '亿';
+                                        } else if (value >= 10000) {
+                                            return (value / 10000).toFixed(0) + '万';
+                                        }
+                                        return value;
+                                    }
+                                }
+                            }
+                        ],
+                        dataZoom: [
+                            { type: 'inside', xAxisIndex: [0, 1, 2], start: 20, end: 100 },
+                            { type: 'slider', xAxisIndex: [0, 1, 2], start: 20, end: 100, height: 20, bottom: 30 }
+                        ],
+                        series: []
+                    };
+
+                    // K线
+                    option.series.push({
+                        name: 'K线',
+                        type: 'candlestick',
+                        data: ohlc,
+                        itemStyle: {
+                            color: '#ef4444',      // 阳线颜色（红涨）
+                            color0: '#22c55e',     // 阴线颜色（绿跌）
+                            borderColor: '#ef4444',
+                            borderColor0: '#22c55e'
+                        }
+                    });
+
+                    // 均线
+                    if (activeIndicators.value.includes('ma') && indicators.ma) {
+                        const maColors = { ma5: '#f59e0b', ma10: '#3b82f6', ma20: '#8b5cf6', ma60: '#6b7280' };
+                        ['ma5', 'ma10', 'ma20', 'ma60'].forEach(ma => {
+                            if (indicators.ma[ma]) {
+                                option.series.push({
+                                    name: ma.toUpperCase(),
+                                    type: 'line',
+                                    data: indicators.ma[ma],
+                                    smooth: true,
+                                    lineStyle: { width: 1, color: maColors[ma] },
+                                    symbol: 'none'
+                                });
+                            }
+                        });
+                    }
+
+                    // 布林带
+                    if (activeIndicators.value.includes('boll') && indicators.boll) {
+                        option.series.push(
+                            {
+                                name: 'BOLL上轨',
+                                type: 'line',
+                                data: indicators.boll.upper,
+                                lineStyle: { width: 1, color: '#f59e0b' },
+                                symbol: 'none'
+                            },
+                            {
+                                name: 'BOLL中轨',
+                                type: 'line',
+                                data: indicators.boll.middle,
+                                lineStyle: { width: 1, color: '#3b82f6' },
+                                symbol: 'none'
+                            },
+                            {
+                                name: 'BOLL下轨',
+                                type: 'line',
+                                data: indicators.boll.lower,
+                                lineStyle: { width: 1, color: '#10b981' },
+                                symbol: 'none',
+                                areaStyle: { color: 'rgba(16, 185, 129, 0.1)' }
+                            }
+                        );
+                    }
+
+                    // MACD - 需要单独的子图
+                    if (activeIndicators.value.includes('macd') && indicators.macd) {
+                        // 添加MACD子图的grid和轴
+                        option.grid.push({ left: '8%', right: '3%', top: '85%', height: '10%' });
+                        option.xAxis.push({ type: 'category', data: dates, gridIndex: 2, axisLabel: { show: false } });
+                        option.yAxis.push({ scale: true, gridIndex: 2, splitLine: { show: false }, axisLabel: { fontSize: 10 } });
+
+                        // MACD柱状图
+                        option.series.push({
+                            name: 'MACD',
+                            type: 'bar',
+                            xAxisIndex: 2,
+                            yAxisIndex: 2,
+                            data: indicators.macd.macd.map((v, i) => ({
+                                value: v,
+                                itemStyle: { color: v >= 0 ? '#ef4444' : '#22c55e' }
+                            }))
+                        });
+                        // DIF线
+                        option.series.push({
+                            name: 'DIF',
+                            type: 'line',
+                            xAxisIndex: 2,
+                            yAxisIndex: 2,
+                            data: indicators.macd.dif,
+                            lineStyle: { width: 1, color: '#f59e0b' },
+                            symbol: 'none'
+                        });
+                        // DEA线
+                        option.series.push({
+                            name: 'DEA',
+                            type: 'line',
+                            xAxisIndex: 2,
+                            yAxisIndex: 2,
+                            data: indicators.macd.dea,
+                            lineStyle: { width: 1, color: '#3b82f6' },
+                            symbol: 'none'
+                        });
+                    }
+
+                    // KDJ - 叠加在K线图上，使用右侧Y轴（0-100）
+                    if (activeIndicators.value.includes('kdj') && indicators.kdj) {
+                        option.yAxis.push({
+                            type: 'value',
+                            position: 'right',
+                            gridIndex: 0,
+                            min: 0,
+                            max: 100,
+                            splitLine: { show: false },
+                            axisLabel: { fontSize: 10, color: '#8b5cf6' }
+                        });
+
+                        option.series.push(
+                            {
+                                name: 'K',
+                                type: 'line',
+                                xAxisIndex: 0,
+                                yAxisIndex: 2,
+                                data: indicators.kdj.k,
+                                lineStyle: { width: 1, color: '#f59e0b' },
+                                symbol: 'none'
+                            },
+                            {
+                                name: 'D',
+                                type: 'line',
+                                xAxisIndex: 0,
+                                yAxisIndex: 2,
+                                data: indicators.kdj.d,
+                                lineStyle: { width: 1, color: '#3b82f6' },
+                                symbol: 'none'
+                            },
+                            {
+                                name: 'J',
+                                type: 'line',
+                                xAxisIndex: 0,
+                                yAxisIndex: 2,
+                                data: indicators.kdj.j,
+                                lineStyle: { width: 1, color: '#8b5cf6' },
+                                symbol: 'none'
+                            }
+                        );
+                    }
+
+                    // RSI - 叠加在K线图上，使用右侧Y轴（0-100）
+                    if (activeIndicators.value.includes('rsi') && indicators.rsi) {
+                        // 如果KDJ已经添加了Y轴，复用；否则新建
+                        const yIndex = activeIndicators.value.includes('kdj') ? 2 : option.yAxis.length;
+
+                        if (!activeIndicators.value.includes('kdj')) {
+                            option.yAxis.push({
+                                type: 'value',
+                                position: 'right',
+                                gridIndex: 0,
+                                min: 0,
+                                max: 100,
+                                splitLine: { show: false },
+                                axisLabel: { fontSize: 10, color: '#8b5cf6' }
+                            });
+                        }
+
+                        option.series.push({
+                            name: 'RSI',
+                            type: 'line',
+                            xAxisIndex: 0,
+                            yAxisIndex: yIndex,
+                            data: indicators.rsi,
+                            lineStyle: { width: 1, color: '#ec4899' },
+                            symbol: 'none'
+                        });
+                    }
+
+                    // 成交量
+                    option.series.push({
+                        name: '成交量',
+                        type: 'bar',
+                        xAxisIndex: 1,
+                        yAxisIndex: 1,
+                        data: volumes.map((v, i) => ({
+                            value: v,
+                            itemStyle: { color: kline[i].close >= kline[i].open ? '#ef4444' : '#22c55e' }
+                        }))
+                    });
+
+                    chartInstance.setOption(option);
+
+                    // 响应窗口大小变化
+                    window.addEventListener('resize', () => {
+                        chartInstance && chartInstance.resize();
+                    });
+                };
+
+                // 生成指标信号
+                const generateSignals = () => {
+                    if (!chartData.value || !chartData.value.indicators) return;
+
+                    const indicators = chartData.value.indicators;
+                    const kline = chartData.value.kline;
+                    const lastIdx = kline.length - 1;
+                    const signals = [];
+
+                    // MACD信号
+                    if (indicators.macd && indicators.macd.macd) {
+                        const macdVal = indicators.macd.macd[lastIdx];
+                        const difVal = indicators.macd.dif[lastIdx];
+                        const deaVal = indicators.macd.dea[lastIdx];
+                        let signal = '中性';
+                        let color = '#6b7280';
+
+                        if (difVal > deaVal && macdVal > 0) {
+                            signal = '多头趋势';
+                            color = '#10b981';
+                        } else if (difVal < deaVal && macdVal < 0) {
+                            signal = '空头趋势';
+                            color = '#ef4444';
+                        } else if (macdVal > 0) {
+                            signal = '金叉信号';
+                            color = '#10b981';
+                        }
+
+                        signals.push({
+                            name: 'MACD',
+                            signal: signal,
+                            value: `DIF: ${difVal?.toFixed(2) || '-'}`,
+                            color: color
+                        });
+                    }
+
+                    // KDJ信号
+                    if (indicators.kdj && indicators.kdj.k) {
+                        const k = indicators.kdj.k[lastIdx];
+                        const d = indicators.kdj.d[lastIdx];
+                        const j = indicators.kdj.j[lastIdx];
+                        let signal = '中性';
+                        let color = '#6b7280';
+
+                        if (j < 20) {
+                            signal = '超卖区';
+                            color = '#10b981';
+                        } else if (j > 80) {
+                            signal = '超买区';
+                            color = '#ef4444';
+                        } else if (k > d) {
+                            signal = '看涨';
+                            color = '#10b981';
+                        } else {
+                            signal = '看跌';
+                            color = '#ef4444';
+                        }
+
+                        signals.push({
+                            name: 'KDJ',
+                            signal: signal,
+                            value: `K:${k?.toFixed(1)} D:${d?.toFixed(1)} J:${j?.toFixed(1)}`,
+                            color: color
+                        });
+                    }
+
+                    // RSI信号
+                    if (indicators.rsi) {
+                        const rsi = indicators.rsi[lastIdx];
+                        let signal = '中性';
+                        let color = '#6b7280';
+
+                        if (rsi < 30) {
+                            signal = '超卖（可买）';
+                            color = '#10b981';
+                        } else if (rsi > 70) {
+                            signal = '超买（可卖）';
+                            color = '#ef4444';
+                        } else if (rsi < 50) {
+                            signal = '偏弱';
+                            color = '#f59e0b';
+                        } else {
+                            signal = '偏强';
+                            color = '#3b82f6';
+                        }
+
+                        signals.push({
+                            name: 'RSI',
+                            signal: signal,
+                            value: `RSI(14): ${rsi?.toFixed(1) || '-'}`,
+                            color: color
+                        });
+                    }
+
+                    // 布林带信号
+                    if (indicators.boll) {
+                        const close = kline[lastIdx]?.close;
+                        const upper = indicators.boll.upper[lastIdx];
+                        const lower = indicators.boll.lower[lastIdx];
+                        let signal = '正常区间';
+                        let color = '#6b7280';
+
+                        if (close >= upper) {
+                            signal = '突破上轨';
+                            color = '#ef4444';
+                        } else if (close <= lower) {
+                            signal = '跌破下轨';
+                            color = '#10b981';
+                        }
+
+                        signals.push({
+                            name: 'BOLL',
+                            signal: signal,
+                            value: `上:${upper?.toFixed(2)} 下:${lower?.toFixed(2)}`,
+                            color: color
+                        });
+                    }
+
+                    // 均线信号
+                    if (indicators.ma && indicators.ma.ma5 && indicators.ma.ma20) {
+                        const ma5 = indicators.ma.ma5[lastIdx];
+                        const ma20 = indicators.ma.ma20[lastIdx];
+                        let signal = '均线缠绕';
+                        let color = '#6b7280';
+
+                        if (ma5 > ma20) {
+                            signal = '多头排列';
+                            color = '#10b981';
+                        } else {
+                            signal = '空头排列';
+                            color = '#ef4444';
+                        }
+
+                        signals.push({
+                            name: '均线',
+                            signal: signal,
+                            value: `MA5:${ma5?.toFixed(2)} MA20:${ma20?.toFixed(2)}`,
+                            color: color
+                        });
+                    }
+
+                    indicatorSignals.value = signals;
+                };
+
                 return {
                     stockCode,
                     loading,
@@ -609,7 +1640,33 @@
                     getStatusTextColor,
                     getPercentileClass,
                     formatValue,
-                    formatNumber
+                    formatNumber,
+                    formatMoney,
+                    // 图表相关
+                    chartData,
+                    chartPeriod,
+                    activeIndicators,
+                    indicatorSignals,
+                    loadChart,
+                    toggleIndicator,
+                    // 同行业对比
+                    industryData,
+                    getColorVsAvg,
+                    // 公司概况
+                    companyProfile,
+                    showCompanyProfile,
+                    // 趋势与资金流向
+                    trendData,
+                    moneyFlowData,
+                    trendError,
+                    moneyFlowError,
+                    // 评级样式
+                    getRatingClass,
+                    getScoreColor,
+                    getScoreGradient,
+                    getScoreDash,
+                    getRatingBg,
+                    getRatingTextColor
                 };
             }
         }).mount('#app');

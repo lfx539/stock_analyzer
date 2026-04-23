@@ -14,6 +14,11 @@ import re
 from services.stock_service import stock_service
 from services.analyzer import analyzer
 from services.news_service import news_service
+from services.report_service import report_service
+from services.alert_service import alert_service
+from services.portfolio_service import portfolio_service
+from services.chart_service import chart_service
+from services.screener_service import screener_service
 from database import Database
 
 app = FastAPI(
@@ -318,6 +323,21 @@ async def get_stock_recommendations() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ========== 早报API ==========
+@app.get("/api/report/morning")
+async def get_morning_report() -> Dict[str, Any]:
+    """获取每日财经早报"""
+    try:
+        # 获取自选股列表
+        watchlist = Database.get_watchlist()
+
+        # 生成早报
+        report = report_service.get_morning_report(watchlist)
+        return report
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ========== 自选股API ==========
 class WatchlistRequest(BaseModel):
     stock_code: str
@@ -401,6 +421,304 @@ async def remove_watchlist(stock_code: str) -> Dict[str, Any]:
             return {"message": f"{stock_code} 不在自选股中", "success": False}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== 价格预警API ==========
+class AlertRequest(BaseModel):
+    stock_code: str
+    stock_name: Optional[str] = None
+    target_price: float
+    alert_type: str  # 'above' 或 'below'
+
+
+@app.get("/api/alerts")
+async def get_alerts() -> Dict[str, Any]:
+    """获取所有价格预警"""
+    try:
+        alerts = alert_service.get_alerts_with_current_price()
+        # 检查是否有触发的预警
+        triggered = alert_service.check_alerts()
+        return {
+            "alerts": alerts,
+            "triggered": triggered,
+            "count": len(alerts)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/alerts")
+async def create_alert(request: AlertRequest) -> Dict[str, Any]:
+    """创建价格预警"""
+    try:
+        # 获取股票名称（如果未提供）
+        stock_name = request.stock_name
+        if not stock_name:
+            try:
+                basic = stock_service.get_stock_basic_info(request.stock_code)
+                stock_name = basic.get('name') or basic.get('Name') or request.stock_code
+            except:
+                stock_name = request.stock_code
+
+        result = alert_service.create_alert(
+            request.stock_code,
+            stock_name,
+            request.target_price,
+            request.alert_type
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/alerts/{alert_id}")
+async def delete_alert(alert_id: int) -> Dict[str, Any]:
+    """删除价格预警"""
+    try:
+        result = alert_service.delete_alert(alert_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== 投资组合API ==========
+class PortfolioRequest(BaseModel):
+    name: str
+    initial_capital: float
+
+
+class TradeRequest(BaseModel):
+    portfolio_id: int
+    stock_code: str
+    stock_name: Optional[str] = None
+    trans_type: str  # 'buy' 或 'sell'
+    shares: float
+    price: float
+
+
+class RenameRequest(BaseModel):
+    new_name: str
+
+
+@app.get("/api/portfolios")
+async def get_portfolios() -> Dict[str, Any]:
+    """获取所有投资组合"""
+    try:
+        portfolios = portfolio_service.get_portfolios()
+        return {"portfolios": portfolios, "count": len(portfolios)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/portfolios")
+async def create_portfolio(request: PortfolioRequest) -> Dict[str, Any]:
+    """创建投资组合"""
+    try:
+        result = portfolio_service.create_portfolio(request.name, request.initial_capital)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/portfolios/{portfolio_id}")
+async def get_portfolio(portfolio_id: int) -> Dict[str, Any]:
+    """获取投资组合详情"""
+    try:
+        portfolio = portfolio_service.get_portfolio_detail(portfolio_id)
+        if not portfolio:
+            raise HTTPException(status_code=404, detail="组合不存在")
+        return portfolio
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/portfolios/{portfolio_id}")
+async def delete_portfolio(portfolio_id: int) -> Dict[str, Any]:
+    """删除投资组合"""
+    try:
+        result = portfolio_service.delete_portfolio(portfolio_id)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/portfolios/{portfolio_id}/rename")
+async def rename_portfolio(portfolio_id: int, request: RenameRequest) -> Dict[str, Any]:
+    """重命名投资组合"""
+    try:
+        result = portfolio_service.rename_portfolio(portfolio_id, request.new_name)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/portfolios/trade")
+async def execute_trade(request: TradeRequest) -> Dict[str, Any]:
+    """执行交易"""
+    try:
+        # 获取股票名称（如果未提供）
+        stock_name = request.stock_name
+        if not stock_name:
+            try:
+                basic = stock_service.get_stock_basic_info(request.stock_code)
+                stock_name = basic.get('name') or basic.get('Name') or request.stock_code
+            except:
+                stock_name = request.stock_code
+
+        result = portfolio_service.trade(
+            request.portfolio_id,
+            request.stock_code,
+            stock_name,
+            request.trans_type,
+            request.shares,
+            request.price
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== K线图表API ==========
+@app.get("/api/chart/{stock_code}")
+async def get_chart_data(stock_code: str, period: str = 'daily', limit: int = 120) -> Dict[str, Any]:
+    """
+    获取K线图表数据
+
+    参数:
+        stock_code: 股票代码
+        period: 周期 (daily/weekly/monthly)
+        limit: 获取数量 (默认120条)
+
+    返回:
+        K线数据、技术指标、支撑压力位
+    """
+    try:
+        result = chart_service.get_kline_data(stock_code, period, limit)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== 同行业对比API ==========
+@app.get("/api/industry/{stock_code}")
+async def get_industry_comparison(stock_code: str) -> Dict[str, Any]:
+    """
+    获取同行业对比数据
+
+    参数:
+        stock_code: 股票代码
+
+    返回:
+        当前股票指标、同行股票指标、行业平均
+    """
+    try:
+        result = stock_service.get_stocks_by_industry(stock_code)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/company/{stock_code}")
+async def get_company_profile(stock_code: str) -> Dict[str, Any]:
+    """
+    获取公司概况
+
+    参数:
+        stock_code: 股票代码
+
+    返回:
+        公司简介、近期重要事件
+    """
+    try:
+        result = stock_service.get_company_profile(stock_code)
+        return {"success": True, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== 策略筛选API ==========
+@app.get("/api/screen")
+async def screen_stocks(strategy: str = "high_dividend") -> Dict[str, Any]:
+    """
+    根据策略筛选股票
+
+    参数:
+        strategy: 策略名称 (high_dividend, growth, value, low_risk)
+
+    返回:
+        符合条件的股票列表
+    """
+    try:
+        result = screener_service.screen_stocks(strategy)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/strategies")
+async def get_strategies() -> Dict[str, Any]:
+    """获取可用策略列表"""
+    try:
+        strategies = screener_service.get_available_strategies()
+        return {"strategies": strategies}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== 大盘指数API ==========
+@app.get("/api/market/indices")
+async def get_market_indices() -> Dict[str, Any]:
+    """
+    获取大盘指数数据
+
+    返回:
+        上证指数、深证成指、创业板指的实时行情
+    """
+    try:
+        indices = stock_service.get_market_indices()
+        return {"indices": indices, "success": True}
+    except Exception as e:
+        return {"indices": [], "success": False, "error": str(e)}
+
+
+# ========== 资金流向API ==========
+@app.get("/api/market/moneyflow/{stock_code}")
+async def get_money_flow(stock_code: str) -> Dict[str, Any]:
+    """
+    获取个股资金流向
+
+    参数:
+        stock_code: 股票代码
+
+    返回:
+        主力资金、大单、中单、小单流入流出情况
+    """
+    try:
+        flow = stock_service.get_money_flow(stock_code)
+        return {"data": flow, "success": True}
+    except Exception as e:
+        return {"data": None, "success": False, "error": str(e)}
+
+
+# ========== 趋势分析API ==========
+@app.get("/api/market/trend/{stock_code}")
+async def get_trend_analysis(stock_code: str) -> Dict[str, Any]:
+    """
+    获取股票趋势分析
+
+    参数:
+        stock_code: 股票代码
+
+    返回:
+        趋势方向、趋势强度、均线排列情况
+    """
+    try:
+        trend = chart_service.analyze_trend(stock_code)
+        return {"data": trend, "success": True}
+    except Exception as e:
+        return {"data": None, "success": False, "error": str(e)}
 
 
 if __name__ == "__main__":
