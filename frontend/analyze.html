@@ -681,7 +681,7 @@
                 <!-- 风险排查 -->
                 <div class="metric-card" v-if="riskCheck">
                     <div class="metric-header">
-                        <span class="metric-name">风险排查</span>
+                        <span class="metric-name">风险排查<span class="help-icon" data-tip="需全部满足才通过：&#10;• 质押率<60%：高质押可能被平仓&#10;• 商誉<20%：高商誉可能减值&#10;• 审计意见标准：非标准意见可能有问题">?</span></span>
                         <span class="metric-status" :style="{background: riskCheck.status_color === 'green' ? '#d1fae5' : '#fee2e2', color: riskCheck.status_color === 'green' ? '#065f46' : '#991b1b'}">
                             {{ riskCheck.status }}
                         </span>
@@ -690,6 +690,7 @@
                         {{ riskCheck.suggestion }}
                     </div>
                     <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-color);" v-if="riskCheck.conditions">
+                        <div style="font-size: 0.7rem; color: var(--text-light); margin-bottom: 6px;">需全部满足：</div>
                         <div v-for="(cond, idx) in riskCheck.conditions" :key="idx" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border-color); font-size: 0.8rem;">
                             <div>
                                 <span style="font-weight: 500;">{{ cond.name }}</span>
