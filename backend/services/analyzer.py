@@ -360,6 +360,31 @@ class FinancialAnalyzer:
                     "net_profit": 0
                 })
 
+        # 获取营收和利润同比增长率
+        revenue_cagr = None
+        profit_cagr = None
+        try:
+            market = "SH" if stock_code.startswith("6") else "SZ"
+            url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+            params = {
+                "reportName": "RPT_LICO_FN_CPD",
+                "columns": "SECURITY_CODE,REPORTDATE,YSTZ,SJLTZ",
+                "filter": f'(SECURITY_CODE="{stock_code}")',
+                "pageSize": 1,
+                "sortColumns": "REPORTDATE",
+                "sortTypes": -1
+            }
+            import requests
+            resp = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"}, timeout=10, proxies={"http": None, "https": None})
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("result") and data["result"].get("data"):
+                    latest = data["result"]["data"][0]
+                    revenue_cagr = round(float(latest.get("YSTZ", 0) or 0), 1)
+                    profit_cagr = round(float(latest.get("SJLTZ", 0) or 0), 1)
+        except Exception as e:
+            print(f"获取增长率失败: {e}")
+
         # 判断ROE状态
         roe_excellent = all(r > 10 for r in roe_history) if roe_history else False
         roe_great = all(r > 15 for r in roe_history) if roe_history else False
@@ -380,8 +405,8 @@ class FinancialAnalyzer:
             "avg_roe": round(avg_roe, 2),
             "roe_status": status,
             "color": color,
-            "revenue_cagr": None,  # 需要营收数据
-            "profit_cagr": None
+            "revenue_cagr": revenue_cagr,
+            "profit_cagr": profit_cagr
         }
 
     def _analyze_cash_flow_simplified(self, stock_code: str) -> Dict:

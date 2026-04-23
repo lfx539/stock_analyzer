@@ -786,9 +786,9 @@
                     </div>
                     <div class="metric-value" style="font-size: 1.1rem; margin-top: 4px;">{{ profitAnalysis.avg_roe || '-' }}%</div>
                     <div style="font-size: 0.7rem; margin-top: 2px;">
-                        <span :style="{color: profitAnalysis.revenue_cagr > 0 ? '#10b981' : '#ef4444'}">营收{{ profitAnalysis.revenue_cagr ? profitAnalysis.revenue_cagr + '%' : '-' }}</span>
+                        <span :style="{color: (profitAnalysis.revenue_cagr || 0) > 0 ? '#10b981' : '#ef4444'}">营收{{ profitAnalysis.revenue_cagr !== null ? (profitAnalysis.revenue_cagr > 0 ? '+' : '') + profitAnalysis.revenue_cagr + '%' : '-' }}</span>
                         <span style="color: var(--text-light); margin: 0 2px;">|</span>
-                        <span :style="{color: profitAnalysis.profit_cagr > 0 ? '#10b981' : '#ef4444'}">利润{{ profitAnalysis.profit_cagr ? profitAnalysis.profit_cagr + '%' : '-' }}</span>
+                        <span :style="{color: (profitAnalysis.profit_cagr || 0) > 0 ? '#10b981' : '#ef4444'}">利润{{ profitAnalysis.profit_cagr !== null ? (profitAnalysis.profit_cagr > 0 ? '+' : '') + profitAnalysis.profit_cagr + '%' : '-' }}</span>
                     </div>
                     <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); min-height: 100px;" v-if="profitAnalysis.roe_history">
                         <div v-for="item in profitAnalysis.roe_history" :key="item.year" style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border-color);">
