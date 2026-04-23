@@ -249,7 +249,29 @@ df = ak.stock_individual_fund_flow(stock='600028', market='sh')
 | 负债率 | 同花顺(akshare) | 季度更新 |
 | 资金流向 | 同花顺(akshare) | 延迟1-2天 |
 
-### 4.3 模拟数据（待优化）
+### 4.3 风险排查数据
+
+| 数据项 | 推荐接口 | 时效性 | 说明 |
+|-------|---------|--------|------|
+| 质押率 | 东方财富质押数据中心 | 月度更新 | 大股东质押股份比例，<60%为安全 |
+| 商誉占比 | 暂用默认值5% | 季度更新 | 商誉/净资产，<20%为安全 |
+| 审计意见 | 默认"标准无保留意见" | 年度更新 | 年报审计意见 |
+
+**质押率接口示例：**
+```
+https://datacenter-web.eastmoney.com/api/data/v1/get
+参数:
+  reportName: RPT_CSDC_LIST
+  columns: SECUCODE,SECURITY_CODE,TRADE_DATE,PLEDGE_RATIO
+  filter: (SECUCODE='600028.SH')
+```
+
+**注意事项：**
+- 质押率：部分股票可能无质押记录，返回0%
+- 商誉占比：需从资产负债表详细接口获取，当前使用保守默认值
+- 审计意见：仅ST股或财务异常公司会有非标准意见
+
+### 4.4 模拟数据（待优化）
 
 | 数据项 | 当前状态 | 建议 |
 |-------|---------|------|
@@ -352,6 +374,46 @@ def get_financial_indicators(stock_code):
     }
 ```
 
+### 5.4 获取风险排查数据
+
+```python
+import requests
+
+def get_risk_data(stock_code):
+    """获取质押率等风险数据"""
+    market = "SH" if stock_code.startswith("6") else "SZ"
+
+    # 获取质押率
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+    params = {
+        "reportName": "RPT_CSDC_LIST",
+        "columns": "SECUCODE,SECURITY_CODE,TRADE_DATE,PLEDGE_RATIO",
+        "filter": f"(SECUCODE='{stock_code}.{market}')",
+        "pageSize": 1,
+        "sortColumns": "TRADE_DATE",
+        "sortTypes": -1
+    }
+
+    resp = requests.get(url, params=params, timeout=10)
+    data = resp.json()
+
+    pledge_rate = 0
+    if data.get("result") and data["result"].get("data"):
+        pledge_rate = float(data["result"]["data"][0].get("PLEDGE_RATIO", 0) or 0)
+
+    # 商誉占比（需从资产负债表获取，这里使用默认值）
+    goodwill_ratio = 5.0  # 默认5%
+
+    # 审计意见（默认标准无保留意见）
+    audit_opinion = "标准无保留意见"
+
+    return {
+        "pledge_rate": pledge_rate,
+        "goodwill_ratio": goodwill_ratio,
+        "audit_opinion": audit_opinion
+    }
+```
+
 ---
 
 ## 六、注意事项
@@ -382,6 +444,7 @@ def get_financial_indicators(stock_code):
 | 日期 | 更新内容 |
 |-----|---------|
 | 2026-04-23 | 初始版本，整理各API接口文档 |
+| 2026-04-23 | 新增风险排查数据接口文档（质押率、商誉占比、审计意见） |
 
 ---
 
