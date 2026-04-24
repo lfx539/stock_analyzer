@@ -784,102 +784,109 @@
                 </div>
             </div>
 
-            <!-- 第二区域：估值分析 -->
-            <h3 class="section-title" v-if="result">估值分析</h3>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
-                <!-- 估值结论 -->
-                <div class="metric-card" style="padding: 12px;" v-if="valuationAnalysis">
-                    <div class="metric-header" style="display: block; margin-bottom: 6px;">
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <span class="metric-name" style="font-size: 0.85rem;">估值结论<span class="help-icon" data-tip="满足任一条件即估值合理：PE<行业平均或PB<行业平均或PE分位数<30%">?</span></span>
+            <!-- 第二区域：估值分析 + 风险排查 -->
+            <div style="display: flex; gap: 12px; margin-top: 16px;">
+                <!-- 估值分析区域 -->
+                <div style="flex: 3;">
+                    <h3 class="section-title" v-if="result" style="margin-top: 0;">估值分析</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+                        <!-- 估值结论 -->
+                        <div class="metric-card" style="padding: 12px;" v-if="valuationAnalysis">
+                            <div class="metric-header" style="display: block; margin-bottom: 6px;">
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <span class="metric-name" style="font-size: 0.85rem;">估值结论<span class="help-icon" data-tip="满足任一条件即估值合理：PE<行业平均或PB<行业平均或PE分位数<30%">?</span></span>
+                                </div>
+                                <span class="metric-status" :style="{background: valuationAnalysis.valuation_color === 'green' ? '#d1fae5' : '#fee2e2', color: valuationAnalysis.valuation_color === 'green' ? '#065f46' : '#991b1b', fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
+                                    {{ valuationAnalysis.valuation_status }}
+                                </span>
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--text-primary); margin-top: 8px;">{{ valuationAnalysis.valuation_suggestion }}</div>
+                            <div v-if="valuationAnalysis.history_note" style="margin-top: 8px; padding: 6px; background: #fef3c7; border-radius: 4px; font-size: 0.7rem; color: #92400e;">{{ valuationAnalysis.history_note }}</div>
+                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color);">
+                                <div v-for="(cond, idx) in valuationAnalysis.conditions" :key="idx" style="display: flex; justify-content: space-between; font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border-color);">
+                                    <span>{{ cond.name }}</span>
+                                    <span :style="{color: cond.pass ? '#059669' : '#dc2626'}">{{ cond.pass ? '✓' : '✗' }}</span>
+                                </div>
+                            </div>
                         </div>
-                        <span class="metric-status" :style="{background: valuationAnalysis.valuation_color === 'green' ? '#d1fae5' : '#fee2e2', color: valuationAnalysis.valuation_color === 'green' ? '#065f46' : '#991b1b', fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
-                            {{ valuationAnalysis.valuation_status }}
-                        </span>
-                    </div>
-                    <div style="font-size: 0.8rem; color: var(--text-primary); margin-top: 8px;">{{ valuationAnalysis.valuation_suggestion }}</div>
-                    <div v-if="valuationAnalysis.history_note" style="margin-top: 8px; padding: 6px; background: #fef3c7; border-radius: 4px; font-size: 0.7rem; color: #92400e;">{{ valuationAnalysis.history_note }}</div>
-                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color);">
-                        <div v-for="(cond, idx) in valuationAnalysis.conditions" :key="idx" style="display: flex; justify-content: space-between; font-size: 0.75rem; padding: 3px 0; border-bottom: 1px solid var(--border-color);">
-                            <span>{{ cond.name }}</span>
-                            <span :style="{color: cond.pass ? '#059669' : '#dc2626'}">{{ cond.pass ? '✓' : '✗' }}</span>
+
+                        <!-- PE估值 -->
+                        <div class="metric-card" style="padding: 12px;" v-if="valuationAnalysis">
+                            <div class="metric-header" style="display: block; margin-bottom: 6px;">
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <span class="metric-name" style="font-size: 0.85rem;">市盈率 PE<span class="help-icon" data-tip="PE = 股价 ÷ 每股收益&#10;表示回本年数，越低越便宜&#10;分位数<30%为低估">?</span></span>
+                                </div>
+                                <span :style="{color: (valuationAnalysis.pe_percentile || 0) < 30 ? '#10b981' : (valuationAnalysis.pe_percentile || 0) < 70 ? '#f59e0b' : '#ef4444', fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
+                                    {{ valuationAnalysis.pe_valuation?.status || '-' }}
+                                </span>
+                            </div>
+                            <div class="metric-value" style="font-size: 1.1rem;">{{ formatValue(valuationAnalysis.pe_ttm) }}</div>
+                            <div style="margin-top: 4px;" v-if="valuationAnalysis.pe_percentile">
+                                <div class="percentile-bar" style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                                    <div :class="getPercentileClass(valuationAnalysis.pe_percentile)" :style="{width: valuationAnalysis.pe_percentile + '%', height: '100%', background: valuationAnalysis.pe_percentile < 30 ? '#10b981' : valuationAnalysis.pe_percentile < 70 ? '#f59e0b' : '#ef4444'}"></div>
+                                </div>
+                                <span style="font-size: 0.75rem; color: var(--text-light);">{{ valuationAnalysis.pe_percentile }}%分位</span>
+                            </div>
+                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); font-size: 0.75rem;">
+                                <div style="display: flex; justify-content: space-between; padding: 3px 0;">
+                                    <span style="color: var(--text-light);">行业平均</span>
+                                    <span>{{ valuationAnalysis.industry_pe || '-' }}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 3px 0; align-items: center;">
+                                    <span style="color: var(--text-light);">对比</span>
+                                    <span :style="{color: (valuationAnalysis.pe_ttm || 0) < (valuationAnalysis.industry_pe || 0) ? '#10b981' : '#ef4444', textAlign: 'right'}">
+                                        {{ (valuationAnalysis.pe_ttm || 0) < (valuationAnalysis.industry_pe || 0) ? '相对低估（回本更快）' : '相对高估（回本更慢）' }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- PB估值 -->
+                        <div class="metric-card" style="padding: 12px;" v-if="valuationAnalysis">
+                            <div class="metric-header" style="display: block; margin-bottom: 6px;">
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <span class="metric-name" style="font-size: 0.85rem;">市净率 PB<span class="help-icon" data-tip="PB = 股价 ÷ 每股净资产&#10;PB<1为破净，可能被低估&#10;分位数<30%为低估">?</span></span>
+                                </div>
+                                <span :style="{color: (valuationAnalysis.pb_percentile || 0) < 30 ? '#10b981' : (valuationAnalysis.pb_percentile || 0) < 70 ? '#f59e0b' : '#ef4444', fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
+                                    {{ valuationAnalysis.pb_valuation?.status || '-' }}
+                                </span>
+                            </div>
+                            <div class="metric-value" style="font-size: 1.1rem;">{{ formatValue(valuationAnalysis.pb) }}</div>
+                            <div style="margin-top: 4px;" v-if="valuationAnalysis.pb_percentile">
+                                <div class="percentile-bar" style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                                    <div :style="{width: valuationAnalysis.pb_percentile + '%', height: '100%', background: (valuationAnalysis.pb_percentile || 0) < 30 ? '#10b981' : (valuationAnalysis.pb_percentile || 0) < 70 ? '#f59e0b' : '#ef4444'}"></div>
+                                </div>
+                                <span style="font-size: 0.75rem; color: var(--text-light);">{{ valuationAnalysis.pb_percentile }}%分位</span>
+                            </div>
+                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); font-size: 0.75rem;">
+                                <div style="display: flex; justify-content: space-between; padding: 3px 0;">
+                                    <span style="color: var(--text-light);">行业平均</span>
+                                    <span>{{ valuationAnalysis.industry_pb }}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 3px 0; align-items: center;">
+                                    <span style="color: var(--text-light);">对比</span>
+                                    <span :style="{color: (valuationAnalysis.pb || 0) < (valuationAnalysis.industry_pb || 0) ? '#10b981' : '#ef4444', textAlign: 'right'}">
+                                        {{ (valuationAnalysis.pb || 0) < (valuationAnalysis.industry_pb || 0) ? '相对低估（溢价低）' : '相对高估（溢价高）' }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- PE估值 -->
-                <div class="metric-card" style="padding: 12px;" v-if="valuationAnalysis">
-                    <div class="metric-header" style="display: block; margin-bottom: 6px;">
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <span class="metric-name" style="font-size: 0.85rem;">市盈率 PE<span class="help-icon" data-tip="PE = 股价 ÷ 每股收益&#10;表示回本年数，越低越便宜&#10;分位数<30%为低估">?</span></span>
-                        </div>
-                        <span :style="{color: (valuationAnalysis.pe_percentile || 0) < 30 ? '#10b981' : (valuationAnalysis.pe_percentile || 0) < 70 ? '#f59e0b' : '#ef4444', fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
-                            {{ valuationAnalysis.pe_valuation?.status || '-' }}
-                        </span>
-                    </div>
-                    <div class="metric-value" style="font-size: 1.1rem;">{{ formatValue(valuationAnalysis.pe_ttm) }}</div>
-                    <div style="margin-top: 4px;" v-if="valuationAnalysis.pe_percentile">
-                        <div class="percentile-bar" style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
-                            <div :class="getPercentileClass(valuationAnalysis.pe_percentile)" :style="{width: valuationAnalysis.pe_percentile + '%', height: '100%', background: valuationAnalysis.pe_percentile < 30 ? '#10b981' : valuationAnalysis.pe_percentile < 70 ? '#f59e0b' : '#ef4444'}"></div>
-                        </div>
-                        <span style="font-size: 0.75rem; color: var(--text-light);">{{ valuationAnalysis.pe_percentile }}%分位</span>
-                    </div>
-                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); font-size: 0.75rem;">
-                        <div style="display: flex; justify-content: space-between; padding: 3px 0;">
-                            <span style="color: var(--text-light);">行业平均</span>
-                            <span>{{ valuationAnalysis.industry_pe || '-' }}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; padding: 3px 0; align-items: center;">
-                            <span style="color: var(--text-light);">对比</span>
-                            <span :style="{color: (valuationAnalysis.pe_ttm || 0) < (valuationAnalysis.industry_pe || 0) ? '#10b981' : '#ef4444', textAlign: 'right'}">
-                                {{ (valuationAnalysis.pe_ttm || 0) < (valuationAnalysis.industry_pe || 0) ? '相对低估（回本更快）' : '相对高估（回本更慢）' }}
+                <!-- 风险排查区域 -->
+                <div style="flex: 1;" v-if="riskCheck">
+                    <h3 class="section-title" style="margin-top: 0;">风险排查</h3>
+                    <div class="metric-card" style="padding: 12px; height: calc(100% - 32px);">
+                        <div class="metric-header">
+                            <span class="metric-name">风险排查<span class="help-icon" data-tip="排除有明显风险的股票：&#10;• 质押率<60%&#10;• 商誉<20%&#10;• 审计意见标准">?</span></span>
+                            <span class="metric-status" :style="{background: riskCheck.status_color === 'green' ? '#d1fae5' : '#fee2e2', color: riskCheck.status_color === 'green' ? '#065f46' : '#991b1b'}">
+                                {{ riskCheck.status }}
                             </span>
                         </div>
+                        <div style="margin-top: 8px; font-size: 0.8rem; color: var(--text-primary);">{{ riskCheck.suggestion }}</div>
                     </div>
                 </div>
-
-                <!-- PB估值 -->
-                <div class="metric-card" style="padding: 12px;" v-if="valuationAnalysis">
-                    <div class="metric-header" style="display: block; margin-bottom: 6px;">
-                        <div style="display: flex; align-items: center; gap: 4px;">
-                            <span class="metric-name" style="font-size: 0.85rem;">市净率 PB<span class="help-icon" data-tip="PB = 股价 ÷ 每股净资产&#10;PB<1为破净，可能被低估&#10;分位数<30%为低估">?</span></span>
-                        </div>
-                        <span :style="{color: (valuationAnalysis.pb_percentile || 0) < 30 ? '#10b981' : (valuationAnalysis.pb_percentile || 0) < 70 ? '#f59e0b' : '#ef4444', fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
-                            {{ valuationAnalysis.pb_valuation?.status || '-' }}
-                        </span>
-                    </div>
-                    <div class="metric-value" style="font-size: 1.1rem;">{{ formatValue(valuationAnalysis.pb) }}</div>
-                    <div style="margin-top: 4px;" v-if="valuationAnalysis.pb_percentile">
-                        <div class="percentile-bar" style="height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
-                            <div :style="{width: valuationAnalysis.pb_percentile + '%', height: '100%', background: (valuationAnalysis.pb_percentile || 0) < 30 ? '#10b981' : (valuationAnalysis.pb_percentile || 0) < 70 ? '#f59e0b' : '#ef4444'}"></div>
-                        </div>
-                        <span style="font-size: 0.75rem; color: var(--text-light);">{{ valuationAnalysis.pb_percentile }}%分位</span>
-                    </div>
-                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border-color); font-size: 0.75rem;">
-                        <div style="display: flex; justify-content: space-between; padding: 3px 0;">
-                            <span style="color: var(--text-light);">行业平均</span>
-                            <span>{{ valuationAnalysis.industry_pb }}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; padding: 3px 0; align-items: center;">
-                            <span style="color: var(--text-light);">对比</span>
-                            <span :style="{color: (valuationAnalysis.pb || 0) < (valuationAnalysis.industry_pb || 0) ? '#10b981' : '#ef4444', textAlign: 'right'}">
-                                {{ (valuationAnalysis.pb || 0) < (valuationAnalysis.industry_pb || 0) ? '相对低估（溢价低）' : '相对高估（溢价高）' }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 风险排查 -->
-            <h3 class="section-title" v-if="riskCheck">风险排查</h3>
-            <div class="metric-card" style="padding: 12px;" v-if="riskCheck">
-                <div class="metric-header">
-                    <span class="metric-name">风险排查<span class="help-icon" data-tip="排除有明显风险的股票：&#10;• 质押率<60%&#10;• 商誉<20%&#10;• 审计意见标准">?</span></span>
-                    <span class="metric-status" :style="{background: riskCheck.status_color === 'green' ? '#d1fae5' : '#fee2e2', color: riskCheck.status_color === 'green' ? '#065f46' : '#991b1b'}">
-                        {{ riskCheck.status }}
-                    </span>
-                </div>
-                <div style="margin-top: 8px; font-size: 0.8rem; color: var(--text-primary);">{{ riskCheck.suggestion }}</div>
             </div>
 
             <!-- 同行业对比 -->
