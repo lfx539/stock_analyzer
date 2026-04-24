@@ -1575,19 +1575,90 @@
                         );
                     }
 
-                    // MACD - 需要单独的子图
-                    if (activeIndicators.value.includes('macd') && indicators.macd) {
-                        // 添加MACD子图的grid和轴
-                        option.grid.push({ left: '8%', right: '3%', top: '85%', height: '10%' });
-                        option.xAxis.push({ type: 'category', data: dates, gridIndex: 2, axisLabel: { show: false } });
-                        option.yAxis.push({ scale: true, gridIndex: 2, splitLine: { show: false }, axisLabel: { fontSize: 10 } });
+                    // 计算需要的技术指标子图
+                    const needKdjRsi = activeIndicators.value.includes('kdj') || activeIndicators.value.includes('rsi');
+                    const needMacd = activeIndicators.value.includes('macd');
+
+                    // 动态调整布局并添加子图
+                    let currentGridIndex = 2;
+                    let currentTop = 55; // 成交量之后开始
+
+                    // KDJ/RSI子图（共用，范围0-100）
+                    if (needKdjRsi) {
+                        currentTop += 14; // 成交量高度12% + 间距
+                        option.grid.push({ left: '8%', right: '3%', top: currentTop + '%', height: '10%' });
+                        option.xAxis.push({ type: 'category', data: dates, gridIndex: currentGridIndex, axisLabel: { show: false } });
+                        option.yAxis.push({
+                            type: 'value',
+                            gridIndex: currentGridIndex,
+                            min: 0,
+                            max: 100,
+                            splitLine: { show: false },
+                            axisLabel: { fontSize: 10 }
+                        });
+
+                        // KDJ
+                        if (activeIndicators.value.includes('kdj') && indicators.kdj) {
+                            option.series.push(
+                                {
+                                    name: 'K',
+                                    type: 'line',
+                                    xAxisIndex: currentGridIndex,
+                                    yAxisIndex: currentGridIndex,
+                                    data: indicators.kdj.k,
+                                    lineStyle: { width: 1, color: '#f59e0b' },
+                                    symbol: 'none'
+                                },
+                                {
+                                    name: 'D',
+                                    type: 'line',
+                                    xAxisIndex: currentGridIndex,
+                                    yAxisIndex: currentGridIndex,
+                                    data: indicators.kdj.d,
+                                    lineStyle: { width: 1, color: '#3b82f6' },
+                                    symbol: 'none'
+                                },
+                                {
+                                    name: 'J',
+                                    type: 'line',
+                                    xAxisIndex: currentGridIndex,
+                                    yAxisIndex: currentGridIndex,
+                                    data: indicators.kdj.j,
+                                    lineStyle: { width: 1, color: '#8b5cf6' },
+                                    symbol: 'none'
+                                }
+                            );
+                        }
+
+                        // RSI（与KDJ共用子图）
+                        if (activeIndicators.value.includes('rsi') && indicators.rsi) {
+                            option.series.push({
+                                name: 'RSI',
+                                type: 'line',
+                                xAxisIndex: currentGridIndex,
+                                yAxisIndex: currentGridIndex,
+                                data: indicators.rsi,
+                                lineStyle: { width: 1, color: '#ec4899' },
+                                symbol: 'none'
+                            });
+                        }
+
+                        currentGridIndex++;
+                        currentTop += 12;
+                    }
+
+                    // MACD子图
+                    if (needMacd && indicators.macd) {
+                        option.grid.push({ left: '8%', right: '3%', top: currentTop + '%', height: '10%' });
+                        option.xAxis.push({ type: 'category', data: dates, gridIndex: currentGridIndex, axisLabel: { show: false } });
+                        option.yAxis.push({ scale: true, gridIndex: currentGridIndex, splitLine: { show: false }, axisLabel: { fontSize: 10 } });
 
                         // MACD柱状图
                         option.series.push({
                             name: 'MACD',
                             type: 'bar',
-                            xAxisIndex: 2,
-                            yAxisIndex: 2,
+                            xAxisIndex: currentGridIndex,
+                            yAxisIndex: currentGridIndex,
                             data: indicators.macd.macd.map((v, i) => ({
                                 value: v,
                                 itemStyle: { color: v >= 0 ? '#ef4444' : '#22c55e' }
@@ -1597,8 +1668,8 @@
                         option.series.push({
                             name: 'DIF',
                             type: 'line',
-                            xAxisIndex: 2,
-                            yAxisIndex: 2,
+                            xAxisIndex: currentGridIndex,
+                            yAxisIndex: currentGridIndex,
                             data: indicators.macd.dif,
                             lineStyle: { width: 1, color: '#f59e0b' },
                             symbol: 'none'
@@ -1607,81 +1678,10 @@
                         option.series.push({
                             name: 'DEA',
                             type: 'line',
-                            xAxisIndex: 2,
-                            yAxisIndex: 2,
+                            xAxisIndex: currentGridIndex,
+                            yAxisIndex: currentGridIndex,
                             data: indicators.macd.dea,
                             lineStyle: { width: 1, color: '#3b82f6' },
-                            symbol: 'none'
-                        });
-                    }
-
-                    // KDJ - 叠加在K线图上，使用右侧Y轴（0-100）
-                    if (activeIndicators.value.includes('kdj') && indicators.kdj) {
-                        option.yAxis.push({
-                            type: 'value',
-                            position: 'right',
-                            gridIndex: 0,
-                            min: 0,
-                            max: 100,
-                            splitLine: { show: false },
-                            axisLabel: { fontSize: 10, color: '#8b5cf6' }
-                        });
-
-                        option.series.push(
-                            {
-                                name: 'K',
-                                type: 'line',
-                                xAxisIndex: 0,
-                                yAxisIndex: 2,
-                                data: indicators.kdj.k,
-                                lineStyle: { width: 1, color: '#f59e0b' },
-                                symbol: 'none'
-                            },
-                            {
-                                name: 'D',
-                                type: 'line',
-                                xAxisIndex: 0,
-                                yAxisIndex: 2,
-                                data: indicators.kdj.d,
-                                lineStyle: { width: 1, color: '#3b82f6' },
-                                symbol: 'none'
-                            },
-                            {
-                                name: 'J',
-                                type: 'line',
-                                xAxisIndex: 0,
-                                yAxisIndex: 2,
-                                data: indicators.kdj.j,
-                                lineStyle: { width: 1, color: '#8b5cf6' },
-                                symbol: 'none'
-                            }
-                        );
-                    }
-
-                    // RSI - 叠加在K线图上，使用右侧Y轴（0-100）
-                    if (activeIndicators.value.includes('rsi') && indicators.rsi) {
-                        // 如果KDJ已经添加了Y轴，复用；否则新建
-                        const yIndex = activeIndicators.value.includes('kdj') ? 2 : option.yAxis.length;
-
-                        if (!activeIndicators.value.includes('kdj')) {
-                            option.yAxis.push({
-                                type: 'value',
-                                position: 'right',
-                                gridIndex: 0,
-                                min: 0,
-                                max: 100,
-                                splitLine: { show: false },
-                                axisLabel: { fontSize: 10, color: '#8b5cf6' }
-                            });
-                        }
-
-                        option.series.push({
-                            name: 'RSI',
-                            type: 'line',
-                            xAxisIndex: 0,
-                            yAxisIndex: yIndex,
-                            data: indicators.rsi,
-                            lineStyle: { width: 1, color: '#ec4899' },
                             symbol: 'none'
                         });
                     }
