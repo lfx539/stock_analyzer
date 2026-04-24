@@ -189,19 +189,27 @@ class StockDataService:
         # 1. 获取当前股票的行业
         stock_info = self.get_stock_info(stock_code)
         industry = stock_info.get("industry", "未知")
+        print(f"[同行业对比] {stock_code} 所属行业: {industry}")
 
-        if industry == "未知":
-            return result
+        # 2. 获取当前股票的指标（即使行业未知也返回当前股票数据）
+        try:
+            current_stock_data = self._get_stock_metrics(stock_code)
+        except Exception as e:
+            print(f"[同行业对比] 获取{stock_code}指标失败: {e}")
+            current_stock_data = {"dividend_yield": 0, "pe": 0, "pb": 0, "roe": 0, "debt_ratio": 0}
 
-        # 2. 获取当前股票的指标
-        current_stock_data = self._get_stock_metrics(stock_code)
         current_stock_data["code"] = stock_code
         current_stock_data["name"] = stock_info.get("name", "未知")
         current_stock_data["industry"] = industry
         result["current_stock"] = current_stock_data
 
+        if industry == "未知":
+            print(f"[同行业对比] 行业未知，无法获取同行股票")
+            return result
+
         # 3. 尝试获取同行业成分股
         peer_codes = self._fetch_industry_stocks(stock_code, industry, limit + 1)
+        print(f"[同行业对比] 获取到 {len(peer_codes)} 个同行股票代码")
 
         # 排除当前股票
         peer_codes = [c for c in peer_codes if c != stock_code][:limit]
@@ -215,8 +223,8 @@ class StockDataService:
                 metrics["code"] = code
                 metrics["name"] = name
                 peer_metrics.append(metrics)
-            except:
-                pass
+            except Exception as e:
+                print(f"[同行业对比] 获取{code}指标失败: {e}")
 
         result["peer_stocks"] = peer_metrics
 
@@ -236,12 +244,12 @@ class StockDataService:
                 "石油": "BK0428",
                 "石化": "BK0428",
                 "化工": "BK0428",
-                "银行": "BK0428",
-                "保险": "BK0428",
-                "券商": "BK0428",
-                "证券": "BK0428",
+                "银行": "BK0475",
+                "保险": "BK0474",
+                "券商": "BK0476",
+                "证券": "BK0476",
                 "白酒": "BK0477",
-                "食品": "BK0477",
+                "食品": "BK0434",
                 "饮料": "BK0477",
                 "医药": "BK0727",
                 "医疗": "BK0727",
@@ -257,6 +265,14 @@ class StockDataService:
                 "建筑": "BK0439",
                 "建材": "BK0442",
                 "水泥": "BK0442",
+                "半导体": "BK0897",
+                "芯片": "BK0897",
+                "计算机": "BK0763",
+                "软件": "BK0763",
+                "通信": "BK0755",
+                "电子": "BK0764",
+                "机械": "BK0444",
+                "电气": "BK0454",
             }
 
             # 查找匹配的行业代码
@@ -264,10 +280,12 @@ class StockDataService:
             for keyword, code in industry_map.items():
                 if keyword in industry:
                     industry_code = code
+                    print(f"[同行业对比] 匹配到行业代码: {keyword} -> {code}")
                     break
 
             if not industry_code:
                 # 如果没有直接匹配，尝试搜索获取同行业股票
+                print(f"[同行业对比] 未匹配到行业代码，使用搜索方式")
                 return self._search_industry_stocks(industry, limit)
 
             # 从东方财富获取成分股
@@ -294,7 +312,12 @@ class StockDataService:
                         code = str(item.get("f12", ""))
                         if code and code != stock_code:
                             codes.append(code)
+                    print(f"[同行业对比] API返回 {len(codes)} 个同行股票")
                     return codes
+                else:
+                    print(f"[同行业对比] API返回数据为空，使用搜索方式")
+            else:
+                print(f"[同行业对比] API请求失败: {resp.status_code}")
 
         except Exception as e:
             print(f"获取同行业股票失败: {e}")

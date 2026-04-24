@@ -885,13 +885,19 @@
             </div>
 
             <!-- 同行业对比 -->
-            <div v-if="industryData && industryData.peer_stocks && industryData.peer_stocks.length > 0" style="margin-top: 16px;">
+            <div v-if="industryData && industryData.current_stock" style="margin-top: 16px;">
                 <h3 class="section-title">
                     同行业对比
                     <span class="help-icon" data-tip="对比同行业公司的关键指标，帮助判断估值是否合理。&#10;绿色数值表示优于行业平均，红色表示劣于行业平均。">?</span>
                 </h3>
                 <div class="metric-card" style="padding: 12px; overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
+                    <div v-if="industryData.current_stock.industry && industryData.current_stock.industry !== '未知'" style="margin-bottom: 10px; font-size: 0.8rem; color: var(--text-light);">
+                        所属行业：{{ industryData.current_stock.industry }}
+                    </div>
+                    <div v-if="!industryData.peer_stocks || industryData.peer_stocks.length === 0" style="font-size: 0.8rem; color: var(--text-light); padding: 8px 0;">
+                        暂无同行业股票数据
+                    </div>
+                    <table v-else style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
                         <thead>
                             <tr style="background: var(--bg-secondary);">
                                 <th style="padding: 8px; text-align: left; border-bottom: 2px solid var(--border-color);">股票</th>
@@ -904,7 +910,7 @@
                         </thead>
                         <tbody>
                             <!-- 当前股票 -->
-                            <tr v-if="industryData.current_stock" style="background: #eff6ff;">
+                            <tr style="background: #eff6ff;">
                                 <td style="padding: 8px; border-bottom: 1px solid var(--border-color);">
                                     <a :href="'analyze.html?code=' + industryData.current_stock.code" style="color: #2563eb; text-decoration: none; font-weight: 600;">
                                         {{ industryData.current_stock.name }}
