@@ -676,19 +676,6 @@
                 </div>
             </div>
 
-            <!-- 风险排查（简化版） -->
-            <div class="metric-card" v-if="riskCheck" style="margin-top: 16px; padding: 12px;">
-                <div class="metric-header">
-                    <span class="metric-name">风险排查<span class="help-icon" data-tip="排除有明显风险的股票：&#10;• 质押率<60%：避免被平仓风险&#10;• 商誉<20%：避免减值风险&#10;• 审计意见标准：避免财务问题">?</span></span>
-                    <span class="metric-status" :style="{background: riskCheck.status_color === 'green' ? '#d1fae5' : '#fee2e2', color: riskCheck.status_color === 'green' ? '#065f46' : '#991b1b'}">
-                        {{ riskCheck.status }}
-                    </span>
-                </div>
-                <div style="margin-top: 8px; font-size: 0.8rem; color: var(--text-primary);">
-                    {{ riskCheck.suggestion }}
-                </div>
-            </div>
-
             <!-- 第一区域：好公司筛选 -->
             <h3 class="section-title" v-if="result">好公司筛选指标</h3>
             <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;">
@@ -800,7 +787,7 @@
 
             <!-- 第二区域：估值分析 -->
             <h3 class="section-title" v-if="result">估值分析</h3>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px;">
                 <!-- 估值结论 -->
                 <div class="metric-card" style="padding: 12px;" v-if="valuationAnalysis">
                     <div class="metric-header" style="display: block; margin-bottom: 6px;">
@@ -881,6 +868,19 @@
                             </span>
                         </div>
                     </div>
+                </div>
+
+                <!-- 风险排查 -->
+                <div class="metric-card" style="padding: 12px;" v-if="riskCheck">
+                    <div class="metric-header" style="display: block; margin-bottom: 6px;">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <span class="metric-name" style="font-size: 0.85rem;">风险排查<span class="help-icon" data-tip="排除有明显风险的股票：&#10;• 质押率<60%&#10;• 商誉<20%&#10;• 审计意见标准">?</span></span>
+                        </div>
+                        <span class="metric-status" :style="{background: riskCheck.status_color === 'green' ? '#d1fae5' : '#fee2e2', color: riskCheck.status_color === 'green' ? '#065f46' : '#991b1b', fontSize: '0.7rem', padding: '2px 6px', marginTop: '4px', display: 'inline-block'}">
+                            {{ riskCheck.status }}
+                        </span>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-primary); margin-top: 8px;">{{ riskCheck.suggestion }}</div>
                 </div>
             </div>
 
