@@ -600,31 +600,6 @@
                     <button @click="toggleIndicator('rsi')" :class="['indicator-btn', activeIndicators.includes('rsi') ? 'active' : '']">RSI</button>
                     <button @click="toggleIndicator('macd')" :class="['indicator-btn', activeIndicators.includes('macd') ? 'active' : '']">MACD</button>
                 </div>
-
-                <!-- 指标参考区间 -->
-                <div style="margin-top: 10px; font-size: 0.7rem; color: var(--text-light); background: var(--bg-secondary); border-radius: 6px; padding: 8px 12px;">
-                    <div style="display: grid; grid-template-columns: 60px 1fr 1fr 1fr; gap: 8px; align-items: center;">
-                        <div style="font-weight: 600; color: var(--text-primary);">指标</div>
-                        <div style="color: #10b981;">超卖区（可买）</div>
-                        <div>正常区</div>
-                        <div style="color: #ef4444;">超买区（可卖）</div>
-
-                        <div style="font-weight: 500;">KDJ</div>
-                        <div style="color: #10b981;">J &lt; 20</div>
-                        <div>20 - 80</div>
-                        <div style="color: #ef4444;">J &gt; 80</div>
-
-                        <div style="font-weight: 500;">RSI</div>
-                        <div style="color: #10b981;">&lt; 30</div>
-                        <div>30 - 70</div>
-                        <div style="color: #ef4444;">&gt; 70</div>
-
-                        <div style="font-weight: 500;">MACD</div>
-                        <div style="color: #10b981;">DIF上穿DEA（金叉）</div>
-                        <div>-</div>
-                        <div style="color: #ef4444;">DIF下穿DEA（死叉）</div>
-                    </div>
-                </div>
             </div>
 
             <!-- 支撑压力位 + 指标信号解读 并排 -->
@@ -672,6 +647,39 @@
                             <div style="font-weight: 600; font-size: 0.8rem;">{{ signal.name }}</div>
                             <div :style="{color: signal.color, fontSize: '0.85rem', marginTop: '2px', fontWeight: '500'}">{{ signal.signal }}</div>
                         </div>
+                    </div>
+                    <!-- 指标参考区间 -->
+                    <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border-color);">
+                        <table style="width: 100%; font-size: 0.7rem; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: var(--bg-secondary);">
+                                    <th style="padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border-color);">指标</th>
+                                    <th style="padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border-color); color: #10b981;">超卖(买)</th>
+                                    <th style="padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border-color);">正常</th>
+                                    <th style="padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border-color); color: #ef4444;">超买(卖)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color); font-weight: 500;">KDJ</td>
+                                    <td style="padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border-color); color: #10b981;">J&lt;20</td>
+                                    <td style="padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border-color);">20-80</td>
+                                    <td style="padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border-color); color: #ef4444;">J&gt;80</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color); font-weight: 500;">RSI</td>
+                                    <td style="padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border-color); color: #10b981;">&lt;30</td>
+                                    <td style="padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border-color);">30-70</td>
+                                    <td style="padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border-color); color: #ef4444;">&gt;70</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 6px 8px; font-weight: 500;">MACD</td>
+                                    <td style="padding: 6px 4px; text-align: center; color: #10b981;">金叉</td>
+                                    <td style="padding: 6px 4px; text-align: center;">-</td>
+                                    <td style="padding: 6px 8px; text-align: center; color: #ef4444;">死叉</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
