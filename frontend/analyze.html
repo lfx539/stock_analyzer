@@ -662,21 +662,21 @@
                             <tbody>
                                 <tr>
                                     <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color); font-weight: 500;">KDJ</td>
-                                    <td style="padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border-color); color: #10b981;">J&lt;20</td>
-                                    <td style="padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border-color);">20-80</td>
-                                    <td style="padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border-color); color: #ef4444;">J&gt;80</td>
+                                    <td :style="{padding: '6px 4px', textAlign: 'center', borderBottom: '1px solid var(--border-color)', background: getIndicatorZone('KDJ') === 'oversold' ? '#dcfce7' : 'transparent', fontWeight: getIndicatorZone('KDJ') === 'oversold' ? '600' : 'normal', color: '#10b981'}">J&lt;20</td>
+                                    <td :style="{padding: '6px 4px', textAlign: 'center', borderBottom: '1px solid var(--border-color)', background: getIndicatorZone('KDJ') === 'normal' ? '#f1f5f9' : 'transparent', fontWeight: getIndicatorZone('KDJ') === 'normal' ? '600' : 'normal'}">20-80</td>
+                                    <td :style="{padding: '6px 8px', textAlign: 'center', borderBottom: '1px solid var(--border-color)', background: getIndicatorZone('KDJ') === 'overbought' ? '#fee2e2' : 'transparent', fontWeight: getIndicatorZone('KDJ') === 'overbought' ? '600' : 'normal', color: '#ef4444'}">J&gt;80</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 6px 8px; border-bottom: 1px solid var(--border-color); font-weight: 500;">RSI</td>
-                                    <td style="padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border-color); color: #10b981;">&lt;30</td>
-                                    <td style="padding: 6px 4px; text-align: center; border-bottom: 1px solid var(--border-color);">30-70</td>
-                                    <td style="padding: 6px 8px; text-align: center; border-bottom: 1px solid var(--border-color); color: #ef4444;">&gt;70</td>
+                                    <td :style="{padding: '6px 4px', textAlign: 'center', borderBottom: '1px solid var(--border-color)', background: getIndicatorZone('RSI') === 'oversold' ? '#dcfce7' : 'transparent', fontWeight: getIndicatorZone('RSI') === 'oversold' ? '600' : 'normal', color: '#10b981'}">&lt;30</td>
+                                    <td :style="{padding: '6px 4px', textAlign: 'center', borderBottom: '1px solid var(--border-color)', background: getIndicatorZone('RSI') === 'normal' ? '#f1f5f9' : 'transparent', fontWeight: getIndicatorZone('RSI') === 'normal' ? '600' : 'normal'}">30-70</td>
+                                    <td :style="{padding: '6px 8px', textAlign: 'center', borderBottom: '1px solid var(--border-color)', background: getIndicatorZone('RSI') === 'overbought' ? '#fee2e2' : 'transparent', fontWeight: getIndicatorZone('RSI') === 'overbought' ? '600' : 'normal', color: '#ef4444'}">&gt;70</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 6px 8px; font-weight: 500;">MACD</td>
-                                    <td style="padding: 6px 4px; text-align: center; color: #10b981;">金叉</td>
-                                    <td style="padding: 6px 4px; text-align: center;">-</td>
-                                    <td style="padding: 6px 8px; text-align: center; color: #ef4444;">死叉</td>
+                                    <td :style="{padding: '6px 4px', textAlign: 'center', background: getIndicatorZone('MACD') === 'oversold' ? '#dcfce7' : 'transparent', fontWeight: getIndicatorZone('MACD') === 'oversold' ? '600' : 'normal', color: '#10b981'}">金叉</td>
+                                    <td :style="{padding: '6px 4px', textAlign: 'center', background: getIndicatorZone('MACD') === 'normal' ? '#f1f5f9' : 'transparent', fontWeight: getIndicatorZone('MACD') === 'normal' ? '600' : 'normal'}">-</td>
+                                    <td :style="{padding: '6px 8px', textAlign: 'center', background: getIndicatorZone('MACD') === 'overbought' ? '#fee2e2' : 'transparent', fontWeight: getIndicatorZone('MACD') === 'overbought' ? '600' : 'normal', color: '#ef4444'}">死叉</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -1235,6 +1235,31 @@
                     } else {
                         return value <= avg ? '#10b981' : '#ef4444';
                     }
+                };
+
+                // 获取指标当前所处区间
+                const getIndicatorZone = (indicatorName) => {
+                    if (!indicatorSignals.value) return '';
+                    const signal = indicatorSignals.value.find(s => s.name === indicatorName);
+                    if (!signal) return '';
+
+                    const signalText = signal.signal.toLowerCase();
+
+                    // KDJ/RSI判断
+                    if (indicatorName === 'KDJ' || indicatorName === 'RSI') {
+                        if (signalText.includes('超卖')) return 'oversold';
+                        if (signalText.includes('超买')) return 'overbought';
+                        return 'normal';
+                    }
+
+                    // MACD判断
+                    if (indicatorName === 'MACD') {
+                        if (signalText.includes('金叉') || signalText.includes('多头') || signalText.includes('看涨')) return 'oversold';
+                        if (signalText.includes('死叉') || signalText.includes('空头') || signalText.includes('看跌')) return 'overbought';
+                        return 'normal';
+                    }
+
+                    return '';
                 };
 
                 // 获取买卖建议文本
@@ -1861,6 +1886,7 @@
                     // 同行业对比
                     industryData,
                     getColorVsAvg,
+                    getIndicatorZone,
                     // 公司概况
                     companyProfile,
                     showCompanyProfile,
